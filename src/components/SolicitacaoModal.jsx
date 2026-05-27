@@ -28,7 +28,7 @@ function formatBRL(val) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export default function SolicitacaoModal({ solicitacao, obras, onSave, onClose }) {
+export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete, onClose }) {
   const isNew = !solicitacao?.id
   const [form, setForm] = useState({
     obra_id:          solicitacao?.obra_id          ?? obras[0]?.id ?? '',
