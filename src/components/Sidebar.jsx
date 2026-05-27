@@ -68,7 +68,10 @@ export default function Sidebar({ active, onChange, userEmail, session }) {
 
       {/* User */}
       <div style={{ padding: '12px 16px', borderTop: '1px solid #1E2235' }}>
-        <div style={{ fontSize: 11, color: '#334155', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#94A3B8', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {session?.user?.user_metadata?.nome ?? userEmail}
+        </div>
+        <div style={{ fontSize: 10, color: '#334155', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {userEmail}
         </div>
         <button
