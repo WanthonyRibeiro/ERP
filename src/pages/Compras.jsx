@@ -64,37 +64,52 @@ export default function Compras({ session }) {
   }
 
   async function handleSave(form) {
-    const { itens, obra, id, ...payload } = form
-    payload.solicitante_id = session.user.id
-    // Garante que status novo é aplicado
-    if (form.status) payload.status = form.status
-
-    let solId = id
-    if (id) {
-      await supabase.from('solicitacoes_compra').update(payload).eq('id', id)
-    } else {
-      const { data } = await supabase.from('solicitacoes_compra').insert(payload).select('id').single()
-      solId = data?.id
+    const payload = {
+      obra_id:          form.obra_id,
+      titulo:           form.titulo,
+      urgencia:         form.urgencia,
+      status:           form.status,
+      solicitante_nome: form.solicitante_nome,
+      solicitante_id:   session.user.id,
+      observacoes:      form.observacoes,
+      motivo_rejeicao:  form.motivo_rejeicao,
+      prazo_entrega:    form.prazo_entrega || null,
     }
 
-    if (solId && itens?.length) {
-      await supabase.from('itens_solicitacao').delete().eq('solicitacao_id', solId)
-      await supabase.from('itens_solicitacao').insert(
-        itens.map((it, idx) => ({
-          solicitacao_id:     solId,
-          descricao:          it.descricao,
-          unidade:            it.unidade,
-          quantidade:         parseFloat(it.quantidade) || 1,
-          valor_unitario:     parseFloat(it.valor_unitario) || null,
-          fornecedor_sugerido: it.fornecedor_sugerido || null,
-          ordem:              idx,
-        }))
-      )
+    const solId = form.id
+    if (solId) {
+      const { error } = await supabase.from('solicitacoes_compra').update(payload).eq('id', solId)
+      if (error) { console.error('Erro update:', error); return }
+    } else {
+      const { data, error } = await supabase.from('solicitacoes_compra').insert(payload).select('id').single()
+      if (error) { console.error('Erro insert:', error); return }
+      const newId = data?.id
+      if (newId && form.itens?.length) {
+        await supabase.from('itens_solicitacao').insert(
+          form.itens.filter(it => it.descricao?.trim()).map((it, idx) => ({
+            solicitacao_id:      newId,
+            descricao:           it.descricao,
+            unidade:             it.unidade,
+            quantidade:          parseFloat(it.quantidade) || 1,
+            valor_unitario:      parseFloat(it.valor_unitario) || null,
+            fornecedor_sugerido: it.fornecedor_sugerido || null,
+            ordem:               idx,
+          }))
+        )
+      }
     }
 
     setModal(null)
     fetchSolicitacoes()
-    showToast(form.id ? 'Solicitação atualizada!' : 'Solicitação criada!')
+    showToast(solId ? 'Solicitação atualizada!' : 'Solicitação criada!')
+  }
+
+  async function handleDelete(id) {
+    await supabase.from('itens_solicitacao').delete().eq('solicitacao_id', id)
+    await supabase.from('solicitacoes_compra').delete().eq('id', id)
+    setModal(null)
+    fetchSolicitacoes()
+    showToast('Solicitação excluída.')
   }
 
   // Filtered
@@ -251,6 +266,7 @@ export default function Compras({ session }) {
           solicitacao={modal.id ? modal : null}
           obras={obras}
           onSave={handleSave}
+          onDelete={handleDelete}
           onClose={() => setModal(null)}
         />
       )}
