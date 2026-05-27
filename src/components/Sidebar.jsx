@@ -4,11 +4,11 @@ const MODULES = [
   { id: 'obras',      icon: '🏗️',  label: 'Obras'      },
   { id: 'compras',    icon: '🛒',  label: 'Compras'    },
   { id: 'cronograma', icon: '📅',  label: 'Cronograma' },
-  { id: 'financeiro', icon: '💰',  label: 'Financeiro', soon: true },
+  { id: 'financeiro', icon: '💰',  label: 'Financeiro' },
   { id: 'rdo',        icon: '📋',  label: 'RDO',        soon: true },
 ]
 
-export default function Sidebar({ active, onChange, userEmail }) {
+export default function Sidebar({ active, onChange, userEmail, session }) {
   return (
     <div style={{
       width: 220, flexShrink: 0, background: '#0D1020',
@@ -24,7 +24,7 @@ export default function Sidebar({ active, onChange, userEmail }) {
             background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 16, fontWeight: 800, color: '#fff',
-          }}>G</div>
+          }}>⚙️</div>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>SA Pride</div>
             <div style={{ fontSize: 10, color: '#334155' }}>Gestão de Obras</div>
