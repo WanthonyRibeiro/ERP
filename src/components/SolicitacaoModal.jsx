@@ -150,12 +150,19 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
         {/* Prazo de entrega */}
         <div style={{ marginBottom: 20 }}>
           <label style={lbl}>Prazo de entrega</label>
-          <input style={inp} type="date" value={form.prazo_entrega} min={new Date().toISOString().slice(0,10)} onChange={e => {
+          <input style={inp} type="date" value={form.prazo_entrega} min={new Date().toISOString().slice(0,10)}
+                onChange={e => setF('prazo_entrega', e.target.value)}
+                onBlur={e => {
                   const val = e.target.value
                   const today = new Date().toISOString().slice(0,10)
-                  if (val && val < today) return
-                  setF('prazo_entrega', val)
-                }} />
+                  if (val && val < today) setF('prazo_entrega', today)
+                }}
+                style={{ ...inp, borderColor: form.prazo_entrega && form.prazo_entrega < new Date().toISOString().slice(0,10) ? '#EF4444' : '#1E2235' }} />
+          {form.prazo_entrega && form.prazo_entrega < new Date().toISOString().slice(0,10) && (
+            <div style={{ fontSize: 11, color: '#EF4444', marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+              ⚠️ Não é possível criar pedidos com prazo de entrega retroativo.
+            </div>
+          ) />
         </div>
 
         {/* Itens */}
