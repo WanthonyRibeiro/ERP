@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+    import { supabase } from '../lib/supabase'
 
 const MODULES = [
   { id: 'obras',      icon: '🏗️',  label: 'Obras'      },
@@ -26,7 +26,7 @@ export default function Sidebar({ active, onChange, userEmail }) {
             fontSize: 16, fontWeight: 800, color: '#fff',
           }}>G</div>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>Gênova</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>SA Pride</div>
             <div style={{ fontSize: 10, color: '#334155' }}>Gestão de Obras</div>
           </div>
         </div>
@@ -85,3 +85,5 @@ export default function Sidebar({ active, onChange, userEmail }) {
     </div>
   )
 }
+
+    
