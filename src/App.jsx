@@ -5,6 +5,7 @@ import Obras from './pages/Obras'
 import Compras from './pages/Compras'
 import Cronograma from './pages/Cronograma'
 import Financeiro from './pages/Financeiro'
+import Configuracoes from './pages/Configuracoes'
 import Sidebar from './components/Sidebar'
 
 export default function App() {
@@ -34,7 +35,8 @@ export default function App() {
       {module === 'obras'      && <Obras      session={session} />}
       {module === 'compras'    && <Compras    session={session} />}
       {module === 'cronograma' && <Cronograma session={session} />}
-      {module === 'financeiro' && <Financeiro session={session} />}
+      {module === 'financeiro'    && <Financeiro    session={session} />}
+      {module === 'configuracoes' && <Configuracoes session={session} />}
     </div>
   )
 }
