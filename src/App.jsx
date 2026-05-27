@@ -4,17 +4,17 @@ import Login from './pages/Login'
 import Obras from './pages/Obras'
 import Compras from './pages/Compras'
 import Cronograma from './pages/Cronograma'
+import Financeiro from './pages/Financeiro'
 import Sidebar from './components/Sidebar'
 
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [module,  setModule]  = useState('cronograma')
+  const [module,  setModule]  = useState('financeiro')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setLoading(false)
+      setSession(session); setLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setSession(session))
     return () => subscription.unsubscribe()
@@ -30,10 +30,11 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#0F1117', fontFamily: "'DM Sans', sans-serif" }}>
-      <Sidebar active={module} onChange={setModule} userEmail={session.user.email} />
+      <Sidebar active={module} onChange={setModule} userEmail={session.user.email} session={session} />
       {module === 'obras'      && <Obras      session={session} />}
       {module === 'compras'    && <Compras    session={session} />}
       {module === 'cronograma' && <Cronograma session={session} />}
+      {module === 'financeiro' && <Financeiro session={session} />}
     </div>
   )
 }
