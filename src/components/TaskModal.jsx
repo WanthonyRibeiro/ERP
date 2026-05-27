@@ -1,4 +1,4 @@
-import { useState } from 'react'
+    import { useState } from 'react'
 
 const CATEGORIES = ['Porcelanato','Instalações','Vinílico','Esquadrias','Gesso','Pintura','Acabamento','Geral']
 
@@ -84,12 +84,29 @@ export default function TaskModal({ task, onSave, onDelete, onClose }) {
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, color: '#64748B', marginBottom: 6 }}>
-            <span>Progresso</span>
-            <span style={{ color: COLORS[form.category] ?? '#3B82F6', fontWeight: 700 }}>{form.progress}%</span>
+          <label style={lbl}>Progresso</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <input
+              style={{ flex: 1, accentColor: '#3B82F6' }}
+              type="range" min={0} max={100}
+              value={form.progress}
+              onChange={e => set('progress', Number(e.target.value))}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+              <input
+                type="number" min={0} max={100}
+                value={form.progress}
+                onChange={e => set('progress', Math.min(100, Math.max(0, Number(e.target.value))))}
+                style={{
+                  width: 56, padding: '5px 8px', borderRadius: 7,
+                  background: '#0F1117', border: '1px solid #1E2235',
+                  color: '#3B82F6', fontSize: 13, fontWeight: 700,
+                  outline: 'none', textAlign: 'center', fontFamily: 'inherit',
+                }}
+              />
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#3B82F6' }}>%</span>
+            </div>
           </div>
-          <input style={{ width: '100%', accentColor: '#3B82F6' }} type="range" min={0} max={100}
-            value={form.progress} onChange={e => set('progress', Number(e.target.value))} />
         </div>
 
         <label style={lbl}>Observações</label>
@@ -124,3 +141,5 @@ export default function TaskModal({ task, onSave, onDelete, onClose }) {
     </div>
   )
 }
+
+    
