@@ -250,10 +250,10 @@ export default function Compras({ session }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {/* Table header */}
           <div style={{
-            display: 'grid', gridTemplateColumns: '24px 2fr 70px 1fr 110px 100px 110px 100px',
+            display: 'grid', gridTemplateColumns: '24px 2fr 70px 1fr 110px 100px 110px 100px 36px',
             padding: '0 16px', gap: 12,
           }}>
-            {['', 'Solicitação', 'Qtde Itens', 'Obra', 'Prazo Entrega', 'Urgência', 'Status', 'Data do Pedido'].map(h => (
+            {['', 'Solicitação', 'Qtde Itens', 'Obra', 'Prazo Entrega', 'Urgência', 'Status', 'Data do Pedido', ''].map(h => (
               <div key={h} style={{ fontSize: 10, fontWeight: 700, color: '#334155', textTransform: 'uppercase' }}>{h}</div>
             ))}
           </div>
@@ -266,7 +266,7 @@ export default function Compras({ session }) {
               <div key={sol.id} style={{ marginBottom: 6 }}>
               <div
                 style={{
-                  display: 'grid', gridTemplateColumns: '24px 2fr 70px 1fr 110px 100px 110px 100px',
+                  display: 'grid', gridTemplateColumns: '24px 2fr 70px 1fr 110px 100px 110px 100px 36px',
                   background: '#1A1D2E', border: `1px solid ${isExpanded ? '#334155' : '#1E2235'}`,
                   borderRadius: isExpanded ? '10px 10px 0 0' : 10,
                   padding: '13px 16px', gap: 12, cursor: 'pointer', alignItems: 'center',
@@ -294,6 +294,18 @@ export default function Compras({ session }) {
                 <div onClick={() => setModal(sol)}><Badge meta={umeta} /></div>
                 <div onClick={() => setModal(sol)}><Badge meta={smeta} /></div>
                 <div style={{ fontSize: 11, color: '#475569' }} onClick={() => setModal(sol)}>{fmtDate(sol.created_at)}</div>
+                <button
+                  onClick={e => { e.stopPropagation(); setModal(sol) }}
+                  title="Editar"
+                  style={{
+                    background: 'none', border: '1px solid #1E2235', borderRadius: 6,
+                    color: '#475569', fontSize: 13, cursor: 'pointer', padding: '4px 6px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#3B82F6'; e.currentTarget.style.color = '#3B82F6' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#1E2235'; e.currentTarget.style.color = '#475569' }}
+                >✏️</button>
               </div>
               {/* Linha expandida com itens */}
               {isExpanded && (
