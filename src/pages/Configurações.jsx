@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+    import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 const ROLES = {
@@ -37,12 +37,27 @@ export default function Configuracoes({ session }) {
   useEffect(() => { init() }, [])
 
   async function init() {
-    const [{ data: profs }, { data: obrasData }] = await Promise.all([
-      supabase.from('user_profiles').select('*, permissoes:user_permissoes(*)').eq('admin_id', session.user.id),
-      supabase.from('obras').select('id, nome').eq('owner_id', session.user.id).order('nome'),
-    ])
-    setUsuarios(profs ?? [])
-    setObras(obrasData ?? [])
+    try {
+      const { data: profs, error: e1 } = await supabase
+        .from('user_profiles')
+        .select('id, user_id, admin_id, role, nome, ativo, created_at')
+        .eq('admin_id', session.user.id)
+      
+      if (e1) console.error('Erro user_profiles:', e1)
+      
+      const { data: obrasData, error: e2 } = await supabase
+        .from('obras')
+        .select('id, nome')
+        .eq('owner_id', session.user.id)
+        .order('nome')
+      
+      if (e2) console.error('Erro obras:', e2)
+      
+      setUsuarios(profs ?? [])
+      setObras(obrasData ?? [])
+    } catch(err) {
+      console.error('init error:', err)
+    }
     setLoading(false)
   }
 
@@ -290,3 +305,5 @@ export default function Configuracoes({ session }) {
     </div>
   )
 }
+
+    
