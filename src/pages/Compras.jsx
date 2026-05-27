@@ -35,6 +35,7 @@ export default function Compras({ session }) {
   const [modal,        setModal]        = useState(null)
   const [loading,      setLoading]      = useState(true)
   const [toast,        setToast]        = useState(null)
+  const [expanded,     setExpanded]     = useState(null) // id da SC expandida
   const [filter, setFilter] = useState({ obra: 'all', status: 'all', urgencia: 'all' })
 
   useEffect(() => { init() }, [])
@@ -84,6 +85,7 @@ export default function Compras({ session }) {
       const { data, error } = await supabase.from('solicitacoes_compra').insert(payload).select('id').single()
       if (error) { console.error('Erro insert:', error); return }
       const newId = data?.id
+      var newSolId = newId
       if (newId && form.itens?.length) {
         await supabase.from('itens_solicitacao').insert(
           form.itens.filter(it => it.descricao?.trim()).map((it, idx) => ({
@@ -99,9 +101,39 @@ export default function Compras({ session }) {
       }
     }
 
+    // Registra histórico
+    const acao = form._acao ?? (solId ? 'editada' : 'criada')
+    const userName = form._userName ?? session.user.email
+    if (acao === 'aprovada') await registrarHistorico(solId, 'aprovada', userName)
+    else if (acao === 'rejeitada') await registrarHistorico(solId, 'rejeitada', userName, form.motivo_rejeicao)
+    else if (acao === 'em_pedido') await registrarHistorico(solId, 'pedido_realizado', userName)
+    else if (acao === 'recebido') await registrarHistorico(solId, 'recebida', userName)
+    else if (!solId) await registrarHistorico(newSolId, 'criada', userName)
+    else await registrarHistorico(solId, 'editada', userName)
+
     setModal(null)
     fetchSolicitacoes()
     showToast(solId ? 'Solicitação atualizada!' : 'Solicitação criada!')
+  }
+
+  async function handleDuplicate(sol) {
+    const { itens, obra, id: oldId, status, created_at, updated_at, solicitante_id, ...payload } = sol
+    payload.status = 'pendente'
+    payload.motivo_rejeicao = null
+    const { data } = await supabase.from('solicitacoes_compra').insert(payload).select('id').single()
+    if (data?.id && itens?.length) {
+      await supabase.from('itens_solicitacao').insert(
+        itens.map((it, idx) => ({
+          solicitacao_id: data.id, descricao: it.descricao, unidade: it.unidade,
+          quantidade: it.quantidade, valor_unitario: it.valor_unitario,
+          fornecedor_sugerido: it.fornecedor_sugerido, ordem: idx,
+        }))
+      )
+      await registrarHistorico(data.id, 'duplicada', session?.user?.user_metadata?.nome ?? session.user.email)
+    }
+    setModal(null)
+    fetchSolicitacoes()
+    showToast('SC duplicada! Edite e reenvie.')
   }
 
   async function handleDelete(id) {
@@ -218,10 +250,10 @@ export default function Compras({ session }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {/* Table header */}
           <div style={{
-            display: 'grid', gridTemplateColumns: '2fr 70px 1fr 110px 100px 110px 100px',
+            display: 'grid', gridTemplateColumns: '24px 2fr 70px 1fr 110px 100px 110px 100px',
             padding: '0 16px', gap: 12,
           }}>
-            {['Solicitação', 'Qtde Itens', 'Obra', 'Prazo Entrega', 'Urgência', 'Status', 'Data do Pedido'].map(h => (
+            {['', 'Solicitação', 'Qtde Itens', 'Obra', 'Prazo Entrega', 'Urgência', 'Status', 'Data do Pedido'].map(h => (
               <div key={h} style={{ fontSize: 10, fontWeight: 700, color: '#334155', textTransform: 'uppercase' }}>{h}</div>
             ))}
           </div>
@@ -229,19 +261,23 @@ export default function Compras({ session }) {
           {filtered.map(sol => {
             const smeta = STATUS_META[sol.status]  ?? STATUS_META.pendente
             const umeta = URGENCIA_META[sol.urgencia] ?? URGENCIA_META.normal
+            const isExpanded = expanded === sol.id
             return (
+              <div key={sol.id} style={{ marginBottom: 6 }}>
               <div
-                key={sol.id}
-                onClick={() => setModal(sol)}
                 style={{
-                  display: 'grid', gridTemplateColumns: '2fr 70px 1fr 110px 100px 110px 100px',
-                  background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 10,
+                  display: 'grid', gridTemplateColumns: '24px 2fr 70px 1fr 110px 100px 110px 100px',
+                  background: '#1A1D2E', border: `1px solid ${isExpanded ? '#334155' : '#1E2235'}`,
+                  borderRadius: isExpanded ? '10px 10px 0 0' : 10,
                   padding: '13px 16px', gap: 12, cursor: 'pointer', alignItems: 'center',
                   transition: 'border-color 0.15s',
                 }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = '#334155'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = '#1E2235'}
+                onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.borderColor = '#1E2235' }}
               >
+                <div onClick={() => setExpanded(isExpanded ? null : sol.id)} style={{ fontSize: 12, color: '#475569', userSelect: 'none', textAlign: 'center' }}>
+                  {isExpanded ? '▾' : '▸'}
+                </div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#F1F5F9', marginBottom: 2 }}>{sol.titulo}</div>
                   {sol.solicitante_nome && <div style={{ fontSize: 11, color: '#475569' }}>por {sol.solicitante_nome}</div>}
@@ -255,9 +291,46 @@ export default function Compras({ session }) {
                 <div style={{ fontSize: 12, color: sol.prazo_entrega ? '#94A3B8' : '#334155' }}>
                   {sol.prazo_entrega ? new Date(sol.prazo_entrega + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}
                 </div>
-                <Badge meta={umeta} />
-                <Badge meta={smeta} />
-                <div style={{ fontSize: 11, color: '#475569' }}>{fmtDate(sol.created_at)}</div>
+                <div onClick={() => setModal(sol)}><Badge meta={umeta} /></div>
+                <div onClick={() => setModal(sol)}><Badge meta={smeta} /></div>
+                <div style={{ fontSize: 11, color: '#475569' }} onClick={() => setModal(sol)}>{fmtDate(sol.created_at)}</div>
+              </div>
+              {/* Linha expandida com itens */}
+              {isExpanded && (
+                <div style={{
+                  background: '#0F1117', border: '1px solid #334155', borderTop: 'none',
+                  borderRadius: '0 0 10px 10px', padding: '12px 16px',
+                }}>
+                  {sol.itens?.length === 0 ? (
+                    <div style={{ fontSize: 12, color: '#334155' }}>Nenhum item.</div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 60px 70px 100px 1fr', gap: 8, marginBottom: 6 }}>
+                        {['Descrição','Un.','Qtde','Valor unit.','Fornecedor'].map((h,i) => (
+                          <div key={i} style={{ fontSize: 10, fontWeight: 700, color: '#334155', textTransform: 'uppercase' }}>{h}</div>
+                        ))}
+                      </div>
+                      {sol.itens.map(it => (
+                        <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '2fr 60px 70px 100px 1fr', gap: 8, marginBottom: 6 }}>
+                          <div style={{ fontSize: 12, color: '#94A3B8' }}>{it.descricao}</div>
+                          <div style={{ fontSize: 12, color: '#64748B' }}>{it.unidade}</div>
+                          <div style={{ fontSize: 12, color: '#64748B' }}>{it.quantidade}</div>
+                          <div style={{ fontSize: 12, color: '#64748B' }}>
+                            {it.valor_unitario ? Number(it.valor_unitario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#475569' }}>{it.fornecedor_sugerido || '—'}</div>
+                        </div>
+                      ))}
+                      <div style={{ borderTop: '1px solid #1E2235', paddingTop: 8, marginTop: 4, textAlign: 'right', fontSize: 12, color: '#64748B' }}>
+                        Total estimado: <strong style={{ color: '#F1F5F9' }}>
+                          {sol.itens.reduce((acc, it) => acc + (parseFloat(it.valor_unitario)||0)*(parseFloat(it.quantidade)||0), 0)
+                            .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </strong>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               </div>
             )
           })}
@@ -270,6 +343,7 @@ export default function Compras({ session }) {
           obras={obras}
           onSave={handleSave}
           onDelete={handleDelete}
+          onDuplicate={handleDuplicate}
           session={session}
           onClose={() => setModal(null)}
         />
