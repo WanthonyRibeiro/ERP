@@ -6,6 +6,7 @@ const MODULES = [
   { id: 'cronograma', icon: '📅',  label: 'Cronograma' },
   { id: 'financeiro', icon: '💰',  label: 'Financeiro' },
   { id: 'rdo',        icon: '📋',  label: 'RDO',        soon: true },
+  { id: 'configuracoes', icon: '⚙️',  label: 'Configurações' },
 ]
 
 export default function Sidebar({ active, onChange, userEmail, session }) {
