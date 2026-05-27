@@ -218,7 +218,7 @@ export default function Compras({ session }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {/* Table header */}
           <div style={{
-            display: 'grid', gridTemplateColumns: '2fr 80px 1.2fr 110px 100px 110px 100px',
+            display: 'grid', gridTemplateColumns: '2fr 70px 1fr 110px 100px 110px 100px',
             padding: '0 16px', gap: 12,
           }}>
             {['Solicitação', 'Qtde Itens', 'Obra', 'Prazo Entrega', 'Urgência', 'Status', 'Data do Pedido'].map(h => (
@@ -234,7 +234,7 @@ export default function Compras({ session }) {
                 key={sol.id}
                 onClick={() => setModal(sol)}
                 style={{
-                  display: 'grid', gridTemplateColumns: '2fr 80px 1.2fr 110px 100px 110px 100px',
+                  display: 'grid', gridTemplateColumns: '2fr 70px 1fr 110px 100px 110px 100px',
                   background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 10,
                   padding: '13px 16px', gap: 12, cursor: 'pointer', alignItems: 'center',
                   transition: 'border-color 0.15s',
@@ -246,14 +246,14 @@ export default function Compras({ session }) {
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#F1F5F9', marginBottom: 2 }}>{sol.titulo}</div>
                   {sol.solicitante_nome && <div style={{ fontSize: 11, color: '#475569' }}>por {sol.solicitante_nome}</div>}
                 </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#94A3B8', textAlign: 'center' }}>
+                  {sol.itens?.length ?? 0}
+                </div>
                 <div style={{ fontSize: 12, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {sol.obra?.nome ?? '—'}
                 </div>
                 <div style={{ fontSize: 12, color: sol.prazo_entrega ? '#94A3B8' : '#334155' }}>
                   {sol.prazo_entrega ? new Date(sol.prazo_entrega + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#94A3B8' }}>
-                  {sol.itens?.length ?? 0}
                 </div>
                 <Badge meta={umeta} />
                 <Badge meta={smeta} />
