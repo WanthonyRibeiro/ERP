@@ -1,16 +1,16 @@
     import { useState } from 'react'
 
 const URGENCIA_META = {
-  normal:  { label: 'Normal',   color: '#64748B', bg: '#1E2235' },
-  urgente: { label: 'Urgente',  color: '#F59E0B', bg: '#451A03' },
-  critico: { label: 'Crítico',  color: '#EF4444', bg: '#450A0A' },
+  normal:  { label: 'Normal',  color: '#64748B', bg: '#1E2235' },
+  urgente: { label: 'Urgente', color: '#F59E0B', bg: '#451A03' },
+  critico: { label: 'Crítico', color: '#EF4444', bg: '#450A0A' },
 }
 const STATUS_META = {
-  pendente:  { label: 'Pendente',        color: '#F59E0B', bg: '#451A03' },
-  aprovada:  { label: 'Aprovada',        color: '#3B82F6', bg: '#1E3A5F' },
-  rejeitada: { label: 'Rejeitada',       color: '#EF4444', bg: '#450A0A' },
-  em_pedido: { label: 'Pedido Realizado',color: '#8B5CF6', bg: '#2E1065' },
-  recebido:  { label: 'Recebido',        color: '#10B981', bg: '#064E3B' },
+  pendente:  { label: 'Pendente',         color: '#F59E0B', bg: '#451A03' },
+  aprovada:  { label: 'Aprovada',         color: '#3B82F6', bg: '#1E3A5F' },
+  rejeitada: { label: 'Rejeitada',        color: '#EF4444', bg: '#450A0A' },
+  em_pedido: { label: 'Pedido Realizado', color: '#8B5CF6', bg: '#2E1065' },
+  recebido:  { label: 'Recebido',         color: '#10B981', bg: '#064E3B' },
 }
 
 const inp = {
@@ -20,25 +20,23 @@ const inp = {
 }
 const lbl = { fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 5, display: 'block' }
 
-function newItem() { return { id: Date.now(), descricao: '', unidade: 'un', quantidade: 1, valor_unitario: '', fornecedor_sugerido: '' } }
-
-function formatBRL(val) {
-  const n = parseFloat(val)
-  if (isNaN(n)) return '—'
-  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+function newItem() {
+  return { id: Date.now(), descricao: '', unidade: 'un', quantidade: 1, valor_unitario: '', fornecedor_sugerido: '' }
 }
 
 export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete, onClose, session }) {
   const isNew = !solicitacao?.id
+  const userName = session?.user?.user_metadata?.nome ?? session?.user?.email ?? ''
+
   const [form, setForm] = useState({
     obra_id:          solicitacao?.obra_id          ?? obras[0]?.id ?? '',
     titulo:           solicitacao?.titulo           ?? '',
     urgencia:         solicitacao?.urgencia         ?? 'normal',
-    solicitante_nome: solicitacao?.solicitante_nome ?? session?.user?.email ?? '',
-    observacoes:      solicitacao?.observacoes      ?? '',
-    prazo_entrega:    solicitacao?.prazo_entrega    ?? '',
     status:           solicitacao?.status           ?? 'pendente',
+    solicitante_nome: solicitacao?.solicitante_nome ?? userName,
+    observacoes:      solicitacao?.observacoes      ?? '',
     motivo_rejeicao:  solicitacao?.motivo_rejeicao  ?? '',
+    prazo_entrega:    solicitacao?.prazo_entrega    ?? '',
   })
   const [items, setItems] = useState(
     solicitacao?.itens?.length ? solicitacao.itens : [newItem()]
@@ -46,15 +44,16 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
   const [showReject, setShowReject] = useState(false)
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
+  const today = new Date().toISOString().slice(0, 10)
+  const prazoInvalido = form.prazo_entrega && form.prazo_entrega < today
+
   const total = items.reduce((acc, it) => {
-    const val = parseFloat(it.valor_unitario) || 0
-    const qty = parseFloat(it.quantidade)    || 0
-    return acc + val * qty
+    return acc + (parseFloat(it.valor_unitario) || 0) * (parseFloat(it.quantidade) || 0)
   }, 0)
 
-  function addItem()           { setItems(its => [...its, newItem()]) }
-  function removeItem(id)      { setItems(its => its.filter(i => i.id !== id)) }
-  function setItem(id, k, v)   { setItems(its => its.map(i => i.id === id ? { ...i, [k]: v } : i)) }
+  function addItem()         { setItems(its => [...its, newItem()]) }
+  function removeItem(id)    { setItems(its => its.filter(i => i.id !== id)) }
+  function setItem(id, k, v) { setItems(its => its.map(i => i.id === id ? { ...i, [k]: v } : i)) }
 
   function handleSave(statusOverride) {
     if (!form.titulo || !form.obra_id) return
@@ -62,19 +61,22 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
       ...solicitacao,
       ...form,
       status: statusOverride ?? form.status,
-      itens: items.filter(i => i.descricao.trim()),
+      itens: items.filter(i => i.descricao?.trim()),
     })
   }
 
-  const smeta = STATUS_META[form.status]
-  const umeta = URGENCIA_META[form.urgencia]
+  const smeta = STATUS_META[form.status]  ?? STATUS_META.pendente
+  const umeta = URGENCIA_META[form.urgencia] ?? URGENCIA_META.normal
 
   return (
-    <div onClick={e => e.target === e.currentTarget && onClose()} style={{
-      position: 'fixed', inset: 0, background: '#00000095',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000, padding: 16,
-    }}>
+    <div
+      onClick={e => e.target === e.currentTarget && onClose()}
+      style={{
+        position: 'fixed', inset: 0, background: '#00000095',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000, padding: 16,
+      }}
+    >
       <div style={{
         background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 16,
         width: 680, maxWidth: '100%', maxHeight: '90vh',
@@ -89,12 +91,8 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
             <span style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9' }}>
               {isNew ? 'Nova solicitação' : 'Solicitação de compra'}
             </span>
-            <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: smeta.bg, color: smeta.color }}>
-              {smeta.label}
-            </span>
-            <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: umeta.bg, color: umeta.color }}>
-              {umeta.label}
-            </span>
+            <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: smeta.bg, color: smeta.color }}>{smeta.label}</span>
+            <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: umeta.bg, color: umeta.color }}>{umeta.label}</span>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 22, cursor: 'pointer' }}>×</button>
         </div>
@@ -102,7 +100,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
 
-          {/* Row 1 */}
+          {/* Título + Obra */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
             <div style={{ flex: 2 }}>
               <label style={lbl}>Título da solicitação *</label>
@@ -116,8 +114,8 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
             </div>
           </div>
 
-          {/* Row 2 */}
-          <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+          {/* Urgência + Solicitante */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
             <div style={{ flex: 1 }}>
               <label style={lbl}>Urgência</label>
               <select style={inp} value={form.urgencia} onChange={e => setF('urgencia', e.target.value)}>
@@ -132,41 +130,42 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
             </div>
           </div>
 
-          {/* Data de abertura — somente leitura */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={lbl}>Data de abertura</label>
-          <div style={{
-            padding: '8px 12px', borderRadius: 7, fontSize: 13,
-            background: '#0A0D14', border: '1px solid #1E2235',
-            color: '#475569', fontFamily: 'inherit',
-          }}>
-            {solicitacao?.created_at
-              ? new Date(solicitacao.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-              : 'Agora — ' + new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-            }
-          </div>
-        </div>
-
-        {/* Prazo de entrega */}
-        <div style={{ marginBottom: 20 }}>
-          <label style={lbl}>Prazo de entrega</label>
-          <input style={inp} type="date" value={form.prazo_entrega} min={new Date().toISOString().slice(0,10)}
-                onChange={e => setF('prazo_entrega', e.target.value)}
-                onBlur={e => {
-                  const val = e.target.value
-                  const today = new Date().toISOString().slice(0,10)
-                  if (val && val < today) setF('prazo_entrega', today)
-                }}
-                style={{ ...inp, borderColor: form.prazo_entrega && form.prazo_entrega < new Date().toISOString().slice(0,10) ? '#EF4444' : '#1E2235' }}
-              />
-          {form.prazo_entrega && form.prazo_entrega < new Date().toISOString().slice(0,10) && (
-            <div style={{ fontSize: 11, color: '#EF4444', marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
-              ⚠️ Não é possível criar pedidos com prazo de entrega retroativo.
+          {/* Data de abertura */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={lbl}>Data de abertura</label>
+            <div style={{
+              padding: '8px 12px', borderRadius: 7, fontSize: 13,
+              background: '#0A0D14', border: '1px solid #1E2235',
+              color: '#475569', fontFamily: 'inherit',
+            }}>
+              {solicitacao?.created_at
+                ? new Date(solicitacao.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : 'Agora — ' + new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+              }
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Itens */}
+          {/* Prazo de entrega */}
+          <div style={{ marginBottom: 20 }}>
+            <label style={lbl}>Prazo de entrega</label>
+            <input
+              style={{ ...inp, borderColor: prazoInvalido ? '#EF4444' : '#1E2235' }}
+              type="date"
+              min={today}
+              value={form.prazo_entrega}
+              onChange={e => setF('prazo_entrega', e.target.value)}
+              onBlur={e => {
+                if (e.target.value && e.target.value < today) setF('prazo_entrega', today)
+              }}
+            />
+            {prazoInvalido && (
+              <div style={{ fontSize: 11, color: '#EF4444', marginTop: 5 }}>
+                ⚠️ Não é possível criar pedidos com prazo de entrega retroativo.
+              </div>
+            )}
+          </div>
+
+          {/* Itens */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <label style={{ ...lbl, marginBottom: 0 }}>Itens solicitados</label>
@@ -175,14 +174,11 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                 background: 'transparent', color: '#3B82F6', fontSize: 12, fontWeight: 600, cursor: 'pointer',
               }}>+ Adicionar item</button>
             </div>
-
-            {/* Table header */}
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 60px 70px 100px 1fr 28px', gap: 6, marginBottom: 6 }}>
               {['Descrição','Un.','Qtde','Valor unit.','Fornecedor sugerido',''].map((h, i) => (
                 <div key={i} style={{ fontSize: 10, fontWeight: 700, color: '#334155', textTransform: 'uppercase' }}>{h}</div>
               ))}
             </div>
-
             {items.map(it => (
               <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '2fr 60px 70px 100px 1fr 28px', gap: 6, marginBottom: 6 }}>
                 <input style={{ ...inp, padding: '7px 10px' }} value={it.descricao} onChange={e => setItem(it.id, 'descricao', e.target.value)} placeholder="Material ou serviço" />
@@ -193,11 +189,11 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                 <button onClick={() => removeItem(it.id)} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 16, cursor: 'pointer', padding: 0, alignSelf: 'center' }}>×</button>
               </div>
             ))}
-
-            {/* Total */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10, paddingTop: 10, borderTop: '1px solid #1E2235' }}>
               <div style={{ fontSize: 13, color: '#64748B' }}>
-                Total estimado: <span style={{ fontWeight: 700, color: '#F1F5F9', marginLeft: 6 }}>{formatBRL(total)}</span>
+                Total estimado: <span style={{ fontWeight: 700, color: '#F1F5F9', marginLeft: 6 }}>
+                  {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
               </div>
             </div>
           </div>
@@ -205,10 +201,10 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
           {/* Observações */}
           <div style={{ marginBottom: 16 }}>
             <label style={lbl}>Observações</label>
-            <textarea style={{ ...inp, resize: 'vertical', minHeight: 64 }} value={form.observacoes} onChange={e => setF('observacoes', e.target.value)} placeholder="Informações adicionais, local de entrega, etc." />
+            <textarea style={{ ...inp, resize: 'vertical', minHeight: 72 }} value={form.observacoes} onChange={e => setF('observacoes', e.target.value)} placeholder="Informações adicionais, local de entrega, etc." />
           </div>
 
-          {/* Motivo rejeição (se rejeitada ou mostrando form de rejeição) */}
+          {/* Motivo rejeição */}
           {(form.status === 'rejeitada' || showReject) && (
             <div style={{ marginBottom: 16 }}>
               <label style={{ ...lbl, color: '#EF4444' }}>Motivo da rejeição</label>
@@ -220,11 +216,11 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
         {/* Footer */}
         <div style={{
           padding: '14px 24px', borderTop: '1px solid #1E2235',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
-          flexWrap: 'wrap', gap: 8,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          flexShrink: 0, flexWrap: 'wrap', gap: 8,
         }}>
-          {/* Excluir — só para solicitações existentes */}
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {/* Excluir */}
+          <div>
             {!isNew && (
               <button onClick={() => onDelete(solicitacao.id)} style={{
                 padding: '7px 14px', borderRadius: 7, border: '1px solid #7F1D1D',
@@ -233,39 +229,21 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
             )}
           </div>
 
-          {/* Status actions */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {/* Ações de status + Salvar */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             {form.status === 'pendente' && !isNew && (
               <>
-                <button onClick={() => handleSave('aprovada')} style={{
-                  padding: '7px 14px', borderRadius: 7, border: 'none',
-                  background: '#1E3A5F', color: '#93C5FD', fontWeight: 600, fontSize: 12, cursor: 'pointer',
-                }}>✓ Aprovar</button>
-                <button onClick={() => setShowReject(r => !r)} style={{
-                  padding: '7px 14px', borderRadius: 7, border: '1px solid #991B1B',
-                  background: 'transparent', color: '#FCA5A5', fontWeight: 600, fontSize: 12, cursor: 'pointer',
-                }}>✕ Rejeitar</button>
+                <button onClick={() => handleSave('aprovada')} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#1E3A5F', color: '#93C5FD', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>✓ Aprovar</button>
+                <button onClick={() => setShowReject(r => !r)} style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #991B1B', background: 'transparent', color: '#FCA5A5', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>✕ Rejeitar</button>
               </>
             )}
             {form.status === 'aprovada' && (
-              <button onClick={() => handleSave('em_pedido')} style={{
-                padding: '7px 14px', borderRadius: 7, border: 'none',
-                background: '#2E1065', color: '#C4B5FD', fontWeight: 600, fontSize: 12, cursor: 'pointer',
-              }}>📦 Marcar como pedido</button>
+              <button onClick={() => handleSave('em_pedido')} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#2E1065', color: '#C4B5FD', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>📦 Marcar como pedido</button>
             )}
             {form.status === 'em_pedido' && (
-              <button onClick={() => handleSave('recebido')} style={{
-                padding: '7px 14px', borderRadius: 7, border: 'none',
-                background: '#064E3B', color: '#6EE7B7', fontWeight: 600, fontSize: 12, cursor: 'pointer',
-              }}>✓ Marcar como recebido</button>
+              <button onClick={() => handleSave('recebido')} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#064E3B', color: '#6EE7B7', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>✓ Marcar como recebido</button>
             )}
-          </div>
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onClose} style={{
-              padding: '8px 18px', borderRadius: 7, border: '1px solid #1E2235',
-              background: 'transparent', color: '#64748B', fontWeight: 600, fontSize: 13, cursor: 'pointer',
-            }}>Cancelar</button>
+            <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
             <button onClick={() => showReject ? handleSave('rejeitada') : handleSave()} style={{
               padding: '8px 18px', borderRadius: 7, border: 'none',
               background: showReject ? '#7F1D1D' : 'linear-gradient(135deg, #3B82F6, #6366F1)',
