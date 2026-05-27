@@ -1,4 +1,4 @@
-import { useState } from 'react'
+    import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const S = {
@@ -68,7 +68,7 @@ export default function Login() {
     <div style={S.wrap}>
       <div style={S.card}>
         <div style={S.logo}>G</div>
-        <div style={S.title}>Gênova Cronograma</div>
+        <div style={S.title}>SA Pride</div>
         <div style={S.sub}>
           {mode === 'login' ? 'Entre na sua conta' : 'Crie sua conta'}
         </div>
@@ -103,3 +103,5 @@ export default function Login() {
     </div>
   )
 }
+
+    
