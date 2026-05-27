@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+    import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import SolicitacaoModal from '../components/SolicitacaoModal'
 
@@ -232,8 +232,8 @@ export default function Compras({ session }) {
                 <div style={{ fontSize: 12, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {sol.obra?.nome ?? '—'}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#94A3B8' }}>
-                  {sol.itens?.length ?? 0} item{(sol.itens?.length ?? 0) !== 1 ? 's' : ''}
+                <div style={{ fontSize: 12, color: sol.prazo_entrega ? '#94A3B8' : '#334155' }}>
+                  {sol.prazo_entrega ? new Date(sol.prazo_entrega + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}
                 </div>
                 <Badge meta={umeta} />
                 <Badge meta={smeta} />
@@ -265,3 +265,5 @@ export default function Compras({ session }) {
     </div>
   )
 }
+
+    
