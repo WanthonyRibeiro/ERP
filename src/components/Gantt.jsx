@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+    import { useRef, useEffect } from 'react'
 
 export const CATEGORY_COLORS = {
   Porcelanato: '#3B82F6', Instalações: '#8B5CF6', Vinílico: '#10B981',
@@ -12,7 +12,6 @@ const COL_W   = 28
 const ROW_H   = 38
 
 function parseDate(str) { return new Date(str + 'T00:00:00') }
-function formatDate(d)  { return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) }
 
 function getDays(start, end) {
   const days = []
@@ -26,21 +25,16 @@ export default function Gantt({ tasks, onTaskClick, filter }) {
   const TODAY = new Date(); TODAY.setHours(0,0,0,0)
 
   const displayed = filter === 'Todas' ? tasks : tasks.filter(t => t.category === filter)
+  const hasTasks  = tasks.length > 0
 
-  if (!tasks.length) return (
-    <div style={{ padding: 60, textAlign: 'center', color: '#334155', fontSize: 14 }}>
-      Nenhuma tarefa ainda. Clique em "+ Nova Tarefa" para começar.
-    </div>
-  )
-
-  const dates  = tasks.flatMap(t => [parseDate(t.start_date), parseDate(t.end_date)])
+  // Always compute these (hooks must not be conditional)
+  const dates     = hasTasks ? tasks.flatMap(t => [parseDate(t.start_date), parseDate(t.end_date)]) : [TODAY, TODAY]
   const projStart = new Date(Math.min(...dates))
   const projEnd   = new Date(Math.max(...dates))
   const allDays   = getDays(projStart, projEnd)
   const totalDays = allDays.length
   const todayOff  = Math.round((TODAY - projStart) / DAY_MS)
 
-  // Group days by month for header
   const months = []
   allDays.forEach((d, i) => {
     const key = `${d.getFullYear()}-${d.getMonth()}`
@@ -56,6 +50,12 @@ export default function Gantt({ tasks, onTaskClick, filter }) {
       scrollRef.current.scrollLeft = Math.max(0, todayOff * COL_W - 120)
     }
   }, [tasks.length])
+
+  if (!hasTasks) return (
+    <div style={{ padding: 60, textAlign: 'center', color: '#334155', fontSize: 14 }}>
+      Nenhuma tarefa ainda. Clique em "+ Nova Tarefa" para começar.
+    </div>
+  )
 
   function progress(t) {
     const s = parseDate(t.start_date), e = parseDate(t.end_date)
@@ -82,8 +82,7 @@ export default function Gantt({ tasks, onTaskClick, filter }) {
                   height: ROW_H, display: 'flex', alignItems: 'center',
                   padding: '0 12px', borderBottom: '1px solid #161929',
                   background: i % 2 === 0 ? '#0F1117' : '#0D1020',
-                  gap: 8, cursor: 'pointer',
-                  transition: 'background 0.1s',
+                  gap: 8, cursor: 'pointer', transition: 'background 0.1s',
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = '#1A1D2E'}
                 onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? '#0F1117' : '#0D1020'}
@@ -117,7 +116,7 @@ export default function Gantt({ tasks, onTaskClick, filter }) {
                 }}>{m.label}</div>
               ))}
               {allDays.map((d, i) => {
-                const isToday = d.getTime() === TODAY.getTime()
+                const isToday   = d.getTime() === TODAY.getTime()
                 const isWeekend = d.getDay() === 0 || d.getDay() === 6
                 return (
                   <div key={i} style={{
@@ -156,7 +155,6 @@ export default function Gantt({ tasks, onTaskClick, filter }) {
                   onMouseEnter={e2 => e2.currentTarget.style.background = '#1A1D2E'}
                   onMouseLeave={e2 => e2.currentTarget.style.background = i % 2 === 0 ? '#0F1117' : '#0D1020'}
                 >
-                  {/* Weekend columns */}
                   {allDays.map((d, di) => (d.getDay() === 0 || d.getDay() === 6) && (
                     <div key={di} style={{
                       position: 'absolute', left: di * COL_W, top: 0,
@@ -165,11 +163,9 @@ export default function Gantt({ tasks, onTaskClick, filter }) {
                     }} />
                   ))}
 
-                  {/* Bar */}
                   <div style={{
                     position: 'absolute', left, top: 7, width: w, height: ROW_H - 14,
-                    borderRadius: 5,
-                    background: col + '28', border: `1.5px solid ${col}55`,
+                    borderRadius: 5, background: col + '28', border: `1.5px solid ${col}55`,
                     overflow: 'hidden', zIndex: 2,
                   }}>
                     <div style={{
@@ -179,7 +175,6 @@ export default function Gantt({ tasks, onTaskClick, filter }) {
                     }} />
                   </div>
 
-                  {/* Today line */}
                   {todayOff >= 0 && todayOff < totalDays && (
                     <div style={{
                       position: 'absolute',
@@ -197,3 +192,5 @@ export default function Gantt({ tasks, onTaskClick, filter }) {
     </div>
   )
 }
+
+    
