@@ -1,4 +1,4 @@
-import { useState } from 'react'
+    import { useState } from 'react'
 
 const URGENCIA_META = {
   normal:  { label: 'Normal',   color: '#64748B', bg: '#1E2235' },
@@ -36,6 +36,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onClose }
     urgencia:         solicitacao?.urgencia         ?? 'normal',
     solicitante_nome: solicitacao?.solicitante_nome ?? '',
     observacoes:      solicitacao?.observacoes      ?? '',
+    prazo_entrega:    solicitacao?.prazo_entrega    ?? '',
     status:           solicitacao?.status           ?? 'pendente',
     motivo_rejeicao:  solicitacao?.motivo_rejeicao  ?? '',
   })
@@ -232,3 +233,5 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onClose }
     </div>
   )
 }
+
+    
