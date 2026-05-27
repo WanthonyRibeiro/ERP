@@ -132,7 +132,13 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onClose }
             </div>
           </div>
 
-          {/* Itens */}
+          {/* Prazo de entrega */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={lbl}>Prazo de entrega</label>
+          <input style={inp} type="date" value={form.prazo_entrega} onChange={e => setF('prazo_entrega', e.target.value)} />
+        </div>
+
+        {/* Itens */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <label style={{ ...lbl, marginBottom: 0 }}>Itens solicitados</label>
