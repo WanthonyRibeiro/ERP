@@ -28,13 +28,13 @@ function formatBRL(val) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete, onClose }) {
+export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete, onClose, session }) {
   const isNew = !solicitacao?.id
   const [form, setForm] = useState({
     obra_id:          solicitacao?.obra_id          ?? obras[0]?.id ?? '',
     titulo:           solicitacao?.titulo           ?? '',
     urgencia:         solicitacao?.urgencia         ?? 'normal',
-    solicitante_nome: solicitacao?.solicitante_nome ?? '',
+    solicitante_nome: solicitacao?.solicitante_nome ?? session?.user?.email ?? '',
     observacoes:      solicitacao?.observacoes      ?? '',
     prazo_entrega:    solicitacao?.prazo_entrega    ?? '',
     status:           solicitacao?.status           ?? 'pendente',
@@ -150,7 +150,12 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
         {/* Prazo de entrega */}
         <div style={{ marginBottom: 20 }}>
           <label style={lbl}>Prazo de entrega</label>
-          <input style={inp} type="date" value={form.prazo_entrega} min={new Date().toISOString().slice(0,10)} onChange={e => setF('prazo_entrega', e.target.value)} />
+          <input style={inp} type="date" value={form.prazo_entrega} min={new Date().toISOString().slice(0,10)} onChange={e => {
+                  const val = e.target.value
+                  const today = new Date().toISOString().slice(0,10)
+                  if (val && val < today) return
+                  setF('prazo_entrega', val)
+                }} />
         </div>
 
         {/* Itens */}
