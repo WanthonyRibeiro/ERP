@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+    import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import Gantt, { CATEGORY_COLORS } from '../components/Gantt'
@@ -89,29 +89,39 @@ export default function Dashboard({ session }) {
     const file = e.target.files[0]
     if (!file) return
     const buf  = await file.arrayBuffer()
-    const wb   = XLSX.read(buf)
+    const wb   = XLSX.read(buf, { cellDates: true })
     const ws   = wb.Sheets[wb.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' })
 
     const toInsert = []
-    for (const row of rows) {
-      // Try to detect rows with at least 3 non-empty cells
+    // Skip header row if first cell looks like a header
+    const startRow = (rows[0] && typeof rows[0][0] === 'string' && rows[0][0].toLowerCase().includes('tare')) ? 1 : 0
+
+    for (let i = startRow; i < rows.length; i++) {
+      const row = rows[i]
       const cells = row.filter(c => c !== null && c !== undefined && c !== '')
       if (cells.length < 3) continue
 
-      // Heuristic: if first or second cell is a number (date serial) it's a task row
-      const hasDateLike = row.slice(0, 4).some(c => typeof c === 'number' && c > 40000 && c < 60000)
-      const hasText     = row.some(c => typeof c === 'string' && c.trim().length > 4)
-      if (!hasDateLike || !hasText) continue
+      // Label: first string cell with meaningful length
+      const label = row.find(c => typeof c === 'string' && c.trim().length > 3 && !/^\d{4}-\d{2}-\d{2}$/.test(c.trim()))?.trim()
+      if (!label) continue
 
-      const label = row.find(c => typeof c === 'string' && c.trim().length > 4)?.trim()
-      const dates = row.filter(c => typeof c === 'number' && c > 40000 && c < 60000)
-      if (!label || dates.length < 1) continue
+      // Category: second string cell (if exists and not a date)
+      const strings = row.filter(c => typeof c === 'string' && c.trim().length > 0 && !/^\d{4}-\d{2}-\d{2}$/.test(c.trim()))
+      const category = strings.length > 1 ? strings[1] : 'Geral'
 
-      const startDate = excelDateToISO(dates[0])
-      const endDate   = excelDateToISO(dates[dates.length - 1])
+      // Dates: cells matching yyyy-mm-dd
+      const dates = row.filter(c => typeof c === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(c.trim()))
+      if (dates.length < 2) continue
 
-      toInsert.push({ project_id: projectId, label, category: 'Geral', start_date: startDate, end_date: endDate, progress: 0 })
+      toInsert.push({
+        project_id: projectId,
+        label,
+        category,
+        start_date: dates[0],
+        end_date:   dates[1],
+        progress:   0,
+      })
     }
 
     if (toInsert.length) {
@@ -264,3 +274,5 @@ export default function Dashboard({ session }) {
     </div>
   )
 }
+
+    
