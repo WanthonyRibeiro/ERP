@@ -118,7 +118,7 @@ export default function Configuracoes({ session }) {
         pode_ver: tipo === 'pode_ver' ? true : false,
         pode_editar: tipo === 'pode_editar' ? true : false,
       }
-      const { data } = await supabase.from('user_permissoes').insert(payload).select().single()
+      const { data } = await supabase.from('user_permissoes').upsert(payload, { onConflict: 'user_id,obra_id,modulo' }).select().single()
       if (data) setPermissoes(ps => [...ps, data])
     }
   }
