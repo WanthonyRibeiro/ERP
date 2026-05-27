@@ -132,10 +132,25 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onClose }
             </div>
           </div>
 
-          {/* Prazo de entrega */}
+          {/* Data de abertura — somente leitura */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={lbl}>Data de abertura</label>
+          <div style={{
+            padding: '8px 12px', borderRadius: 7, fontSize: 13,
+            background: '#0A0D14', border: '1px solid #1E2235',
+            color: '#475569', fontFamily: 'inherit',
+          }}>
+            {solicitacao?.created_at
+              ? new Date(solicitacao.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+              : 'Agora — ' + new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            }
+          </div>
+        </div>
+
+        {/* Prazo de entrega */}
         <div style={{ marginBottom: 20 }}>
           <label style={lbl}>Prazo de entrega</label>
-          <input style={inp} type="date" value={form.prazo_entrega} onChange={e => setF('prazo_entrega', e.target.value)} />
+          <input style={inp} type="date" value={form.prazo_entrega} min={new Date().toISOString().slice(0,10)} onChange={e => setF('prazo_entrega', e.target.value)} />
         </div>
 
         {/* Itens */}
@@ -195,6 +210,16 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onClose }
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
           flexWrap: 'wrap', gap: 8,
         }}>
+          {/* Excluir — só para solicitações existentes */}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {!isNew && (
+              <button onClick={() => onDelete(solicitacao.id)} style={{
+                padding: '7px 14px', borderRadius: 7, border: '1px solid #7F1D1D',
+                background: 'transparent', color: '#FCA5A5', fontWeight: 600, fontSize: 12, cursor: 'pointer',
+              }}>🗑 Excluir</button>
+            )}
+          </div>
+
           {/* Status actions */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {form.status === 'pendente' && !isNew && (
