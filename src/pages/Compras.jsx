@@ -64,12 +64,14 @@ export default function Compras({ session }) {
   }
 
   async function handleSave(form) {
-    const { itens, obra, ...payload } = form
+    const { itens, obra, id, ...payload } = form
     payload.solicitante_id = session.user.id
+    // Garante que status novo é aplicado
+    if (form.status) payload.status = form.status
 
-    let solId = form.id
-    if (form.id) {
-      await supabase.from('solicitacoes_compra').update(payload).eq('id', form.id)
+    let solId = id
+    if (id) {
+      await supabase.from('solicitacoes_compra').update(payload).eq('id', id)
     } else {
       const { data } = await supabase.from('solicitacoes_compra').insert(payload).select('id').single()
       solId = data?.id
