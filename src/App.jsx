@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react'
+    import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
 import Obras from './pages/Obras'
 import Compras from './pages/Compras'
+import Cronograma from './pages/Cronograma'
 import Sidebar from './components/Sidebar'
 
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [module,  setModule]  = useState('compras')
+  const [module,  setModule]  = useState('cronograma')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -33,7 +33,9 @@ export default function App() {
       <Sidebar active={module} onChange={setModule} userEmail={session.user.email} />
       {module === 'obras'      && <Obras      session={session} />}
       {module === 'compras'    && <Compras    session={session} />}
-      {module === 'cronograma' && <Dashboard  session={session} />}
+      {module === 'cronograma' && <Cronograma session={session} />}
     </div>
   )
 }
+
+    
