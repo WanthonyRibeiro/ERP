@@ -267,6 +267,7 @@ export default function Compras({ session }) {
           obras={obras}
           onSave={handleSave}
           onDelete={handleDelete}
+          session={session}
           onClose={() => setModal(null)}
         />
       )}
