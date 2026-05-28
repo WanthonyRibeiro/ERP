@@ -1,4 +1,4 @@
-    import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Obras from './pages/Obras'
@@ -33,7 +33,7 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#0F1117', fontFamily: "'DM Sans', sans-serif" }}>
-      <Sidebar active={module} onChange={setModule} userEmail={session.user.email} session={session} permissoes={permissoes} />
+      <Sidebar active={module} onChange={setModule} userEmail={session.user.email} session={session} isAdmin={permissoes.isAdmin} permsArray={permissoes.permissoes} />
       {module === 'obras'         && <Obras         session={session} permissoes={permissoes} />}
       {module === 'compras'       && <Compras       session={session} permissoes={permissoes} />}
       {module === 'cronograma'    && <Cronograma    session={session} permissoes={permissoes} />}
@@ -42,5 +42,3 @@ export default function App() {
     </div>
   )
 }
-
-    

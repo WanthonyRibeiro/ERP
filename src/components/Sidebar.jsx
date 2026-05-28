@@ -9,7 +9,7 @@ const ALL_MODULES = [
   { id: 'configuracoes', icon: '⚙️',  label: 'Configurações' },
 ]
 
-export default function Sidebar({ active, onChange, userEmail, session, permissoes }) {
+export default function Sidebar({ active, onChange, userEmail, session, isAdmin, permsArray }) {
   return (
     <div style={{
       width: 220, flexShrink: 0, background: '#0D1020',
@@ -36,12 +36,11 @@ export default function Sidebar({ active, onChange, userEmail, session, permisso
       {/* Nav */}
       <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {ALL_MODULES.filter(m => {
-          if (permissoes?.isAdmin) return !m.soon || m.adminOnly === false
+          if (isAdmin) return !m.soon
           if (m.adminOnly) return false
           if (m.soon) return false
-          const permsArr = permissoes?.permissoes ?? []
-          if (!permsArr.length) return false
-          return permsArr.some(p => p.modulo === m.modulo && p.pode_ver === true)
+          if (!permsArray?.length) return false
+          return permsArray.some(p => p.modulo === m.modulo && p.pode_ver === true)
         }).map(m => {
           const isActive = active === m.id
           return (
