@@ -1,4 +1,4 @@
-    import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Obras from './pages/Obras'
@@ -6,12 +6,14 @@ import Compras from './pages/Compras'
 import Cronograma from './pages/Cronograma'
 import Financeiro from './pages/Financeiro'
 import Configuracoes from './pages/Configuracoes'
+import { usePermissoes } from './lib/usePermissoes'
 import Sidebar from './components/Sidebar'
 
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [module,  setModule]  = useState('financeiro')
+  const [module,  setModule]  = useState('compras')
+  const permissoes = usePermissoes(session)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -31,14 +33,12 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#0F1117', fontFamily: "'DM Sans', sans-serif" }}>
-      <Sidebar active={module} onChange={setModule} userEmail={session.user.email} session={session} />
-      {module === 'obras'      && <Obras      session={session} />}
-      {module === 'compras'    && <Compras    session={session} />}
-      {module === 'cronograma' && <Cronograma session={session} />}
-      {module === 'financeiro'    && <Financeiro    session={session} />}
+      <Sidebar active={module} onChange={setModule} userEmail={session.user.email} session={session} permissoes={permissoes} />
+      {module === 'obras'         && <Obras         session={session} permissoes={permissoes} />}
+      {module === 'compras'       && <Compras       session={session} permissoes={permissoes} />}
+      {module === 'cronograma'    && <Cronograma    session={session} permissoes={permissoes} />}
+      {module === 'financeiro'    && <Financeiro    session={session} permissoes={permissoes} />}
       {module === 'configuracoes' && <Configuracoes session={session} />}
     </div>
   )
 }
-
-    
