@@ -1,4 +1,4 @@
-    import { supabase } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 
 const MODULES = [
   { id: 'obras',      icon: '🏗️',  label: 'Obras'      },
@@ -9,7 +9,7 @@ const MODULES = [
   { id: 'configuracoes', icon: '⚙️',  label: 'Configurações' },
 ]
 
-export default function Sidebar({ active, onChange, userEmail, session }) {
+export default function Sidebar({ active, onChange, userEmail, session, permissoes }) {
   return (
     <div style={{
       width: 220, flexShrink: 0, background: '#0D1020',
@@ -35,7 +35,12 @@ export default function Sidebar({ active, onChange, userEmail, session }) {
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {MODULES.map(m => {
+        {ALL_MODULES.filter(m => {
+          if (m.adminOnly) return permissoes?.isAdmin ?? true
+          if (permissoes?.isAdmin) return true
+          if (m.soon) return false
+          return permissoes?.podeVerModulo(m.modulo) ?? true
+        }).map(m => {
           const isActive = active === m.id
           return (
             <button
@@ -89,5 +94,3 @@ export default function Sidebar({ active, onChange, userEmail, session }) {
     </div>
   )
 }
-
-    
