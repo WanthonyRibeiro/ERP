@@ -71,6 +71,18 @@ export default function Compras({ session, permissoes }) {
     setTimeout(() => setToast(null), 3000)
   }
 
+  async function registrarHistorico(solId, acao, userName, descricao = null) {
+    try {
+      await supabase.from('sc_historico').insert({
+        solicitacao_id: solId,
+        usuario_id:     session.user.id,
+        usuario_nome:   userName,
+        acao,
+        descricao,
+      })
+    } catch(e) { console.error('historico error:', e) }
+  }
+
   async function handleSave(form) {
     const payload = {
       obra_id:          form.obra_id,
