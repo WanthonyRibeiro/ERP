@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 const ALL_MODULES = [
@@ -10,6 +11,14 @@ const ALL_MODULES = [
 ]
 
 export default function Sidebar({ active, onChange, userEmail, session, isAdmin, permsArray }) {
+  const [localPerms, setLocalPerms] = useState(permsArray ?? [])
+  const [localAdmin, setLocalAdmin] = useState(isAdmin ?? false)
+
+  // Sync when props change
+  useEffect(() => {
+    setLocalPerms(permsArray ?? [])
+    setLocalAdmin(isAdmin ?? false)
+  }, [isAdmin, permsArray])
   return (
     <div style={{
       width: 220, flexShrink: 0, background: '#0D1020',
@@ -36,11 +45,11 @@ export default function Sidebar({ active, onChange, userEmail, session, isAdmin,
       {/* Nav */}
       <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {ALL_MODULES.filter(m => {
-          if (isAdmin) return !m.soon
+          if (localAdmin) return !m.soon
           if (m.adminOnly) return false
           if (m.soon) return false
-          if (!permsArray?.length) return false
-          return permsArray.some(p => p.modulo === m.modulo && p.pode_ver === true)
+          if (!localPerms.length) return false
+          return localPerms.some(p => p.modulo === m.modulo && p.pode_ver === true)
         }).map(m => {
           const isActive = active === m.id
           return (
