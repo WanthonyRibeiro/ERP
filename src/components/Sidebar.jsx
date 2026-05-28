@@ -26,8 +26,13 @@ export default function Sidebar({ active, onChange, userEmail, session }) {
       .eq('user_id', session.user.id)
       .maybeSingle()
 
-    // Admin ou sem perfil: mostra tudo exceto "em breve"
-    if (!profile || profile.role === 'admin') {
+    // Sem perfil = sem acesso
+    if (!profile) {
+      setVisibleModules(null) // null = sem acesso
+      return
+    }
+    // Admin: mostra tudo exceto "em breve"
+    if (profile.role === 'admin') {
       setVisibleModules(ALL_MODULES.filter(m => !m.soon))
       return
     }
@@ -94,6 +99,7 @@ export default function Sidebar({ active, onChange, userEmail, session }) {
             </button>
           )
         })}
+        )}
       </nav>
 
       {/* User */}
