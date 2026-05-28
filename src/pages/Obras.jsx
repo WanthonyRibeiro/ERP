@@ -22,7 +22,8 @@ export default function Obras({ session, permissoes }) {
 
   async function fetchObras() {
     // RLS handles filtering — admin sees owned obras, others see permitted obras
-    const { data } = await supabase.from('obras').select('*').order('created_at', { ascending: false })
+    const { data, error } = await supabase.from('obras').select('*').order('created_at', { ascending: false })
+    console.log('obras data:', data, 'error:', error)
     setObras(data ?? [])
     setLoading(false)
   }
