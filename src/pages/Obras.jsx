@@ -18,7 +18,7 @@ export default function Obras({ session, permissoes }) {
   const [modal, setModal]   = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { fetchObras() }, [])
+  useEffect(() => { fetchObras() }, [permissoes?.isAdmin, JSON.stringify(permissoes?.obrasIds)])
 
   async function fetchObras() {
     // RLS handles filtering — admin sees owned obras, others see permitted obras
