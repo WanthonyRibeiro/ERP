@@ -1,4 +1,4 @@
-    import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import SolicitacaoModal from '../components/SolicitacaoModal'
 
@@ -29,7 +29,7 @@ function Badge({ meta }) {
   )
 }
 
-export default function Compras({ session }) {
+export default function Compras({ session, permissoes }) {
   const [solicitacoes, setSolicitacoes] = useState([])
   const [obras,        setObras]        = useState([])
   const [modal,        setModal]        = useState(null)
@@ -42,7 +42,14 @@ export default function Compras({ session }) {
 
   async function init() {
     const [{ data: obrasData }, { data: solData }] = await Promise.all([
-      supabase.from('obras').select('id, nome').eq('owner_id', session.user.id).order('nome'),
+      (() => {
+        const isAdmin = permissoes?.isAdmin ?? true
+        let q = supabase.from('obras').select('id, nome').order('nome')
+        if (isAdmin) return q.eq('owner_id', session.user.id)
+        const ids = permissoes?.obrasIds ?? []
+        if (!ids.length) return q.eq('id', 'none')
+        return q.in('id', ids)
+      })(),
       fetchSolicitacoes(true),
     ])
     setObras(obrasData ?? [])
@@ -373,5 +380,3 @@ export default function Compras({ session }) {
     </div>
   )
 }
-
-    
