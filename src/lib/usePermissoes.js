@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 
 export function usePermissoes(session) {
   const [isAdmin,    setIsAdmin]    = useState(false)
-  const [permissoes, setPermissoes] = useState([])
+  const [permsData,   setPermsData]  = useState([])
   const [obrasIds,   setObrasIds]   = useState([])
   const [loading,    setLoading]    = useState(true)
 
@@ -37,19 +37,19 @@ export function usePermissoes(session) {
 
     console.log('usePermissoes: perms=', perms, 'error=', e2)
 
-    setPermissoes(perms ?? [])
+    setPermsData(perms ?? [])
     setObrasIds([...new Set((perms ?? []).filter(p => p.pode_ver).map(p => p.obra_id))])
     setLoading(false)
   }
 
   function podeVerModulo(modulo) {
     if (isAdmin) return true
-    return permissoes.some(p => p.modulo === modulo && p.pode_ver)
+    return permsData.some(p => p.modulo === modulo && p.pode_ver)
   }
 
   function podeEditarModulo(modulo) {
     if (isAdmin) return true
-    return permissoes.some(p => p.modulo === modulo && p.pode_editar)
+    return permsData.some(p => p.modulo === modulo && p.pode_editar)
   }
 
   function podeVerObra(obraId) {
@@ -62,5 +62,5 @@ export function usePermissoes(session) {
     return todasObras.filter(o => obrasIds.includes(o.id))
   }
 
-  return { isAdmin, permissoes, obrasIds, loading, podeVerModulo, podeEditarModulo, podeVerObra, obrasPermitidas }
+  return { isAdmin, permissoes: permsData, obrasIds, loading, podeVerModulo, podeEditarModulo, podeVerObra, obrasPermitidas }
 }
