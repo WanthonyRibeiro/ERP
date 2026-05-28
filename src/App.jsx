@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+    import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Obras from './pages/Obras'
@@ -23,7 +23,7 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  if (loading) return (
+  if (loading || (session && permissoes.loading)) return (
     <div style={{ minHeight: '100vh', background: '#0F1117', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ color: '#334155', fontSize: 14 }}>Carregando...</div>
     </div>
@@ -42,3 +42,5 @@ export default function App() {
     </div>
   )
 }
+
+    
