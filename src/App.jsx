@@ -41,12 +41,13 @@ export default function App() {
       `}</style>
       <Sidebar active={module} onChange={setModule} userEmail={session.user.email} session={session} />
       <div className="sa-main-content" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      {module === 'obras'         && <Obras         session={session} permissoes={permissoes} />}
-      {module === 'compras'       && <Compras       session={session} permissoes={permissoes} />}
-      {module === 'cronograma'    && <Cronograma    session={session} permissoes={permissoes} />}
-      {module === 'financeiro'    && <Financeiro    session={session} permissoes={permissoes} />}
-      {module === 'configuracoes' && <Configuracoes session={session} />}
-      <FeedbackButton session={session} />
+        {module === 'obras'         && <Obras         session={session} permissoes={permissoes} />}
+        {module === 'compras'       && <Compras       session={session} permissoes={permissoes} />}
+        {module === 'cronograma'    && <Cronograma    session={session} permissoes={permissoes} />}
+        {module === 'financeiro'    && <Financeiro    session={session} permissoes={permissoes} />}
+        {module === 'configuracoes' && <Configuracoes session={session} />}
+        <FeedbackButton session={session} />
+      </div>
     </div>
   )
 }
