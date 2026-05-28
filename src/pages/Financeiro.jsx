@@ -454,14 +454,21 @@ const STATUS_OBRA = {
   concluida:    { label: 'Concluída',    color: '#6366F1', bg: '#1E1B4B' },
 }
 
-export default function Financeiro({ session }) {
+export default function Financeiro({ session, permissoes }) {
   const [obras,  setObras]  = useState([])
   const [obra,   setObra]   = useState(null)
   const [aba,    setAba]    = useState('painel')
   const [loading,setLoading]= useState(true)
 
   useEffect(() => {
-    supabase.from('obras').select('*').eq('owner_id', session.user.id).order('created_at', { ascending: false })
+    (() => {
+        const isAdmin = permissoes?.isAdmin ?? true
+        let q = supabase.from('obras').select('*').order('created_at', { ascending: false })
+        if (isAdmin) return q.eq('owner_id', session.user.id)
+        const ids = permissoes?.obrasIds ?? []
+        if (!ids.length) return q.eq('id', 'none')
+        return q.in('id', ids)
+      })()
       .then(({ data }) => { setObras(data ?? []); setLoading(false) })
   }, [])
 

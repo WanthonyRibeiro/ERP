@@ -21,16 +21,8 @@ export default function Obras({ session, permissoes }) {
   useEffect(() => { fetchObras() }, [])
 
   async function fetchObras() {
-    const isAdmin = permissoes?.isAdmin ?? true
-    let query = supabase.from('obras').select('*').order('created_at', { ascending: false })
-    if (isAdmin) {
-      query = query.eq('owner_id', session.user.id)
-    } else {
-      const ids = permissoes?.obrasIds ?? []
-      if (!ids.length) { setObras([]); setLoading(false); return }
-      query = query.in('id', ids)
-    }
-    const { data } = await query
+    // RLS handles filtering — admin sees owned obras, others see permitted obras
+    const { data } = await supabase.from('obras').select('*').order('created_at', { ascending: false })
     setObras(data ?? [])
     setLoading(false)
   }

@@ -292,16 +292,7 @@ export default function Cronograma({ session, permissoes }) {
 
   useEffect(() => {
     async function fetchObras() {
-      const isAdmin = permissoes?.isAdmin ?? true
-      let query = supabase.from('obras').select('*').order('created_at', { ascending: false })
-      if (isAdmin) {
-        query = query.eq('owner_id', session.user.id)
-      } else {
-        const ids = permissoes?.obrasIds ?? []
-        if (!ids.length) { setObras([]); setLoading(false); return }
-        query = query.in('id', ids)
-      }
-      const { data } = await query
+      const { data } = await supabase.from('obras').select('*').order('created_at', { ascending: false })
       setObras(data ?? [])
       setLoading(false)
     }
