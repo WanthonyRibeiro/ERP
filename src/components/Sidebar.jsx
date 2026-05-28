@@ -40,7 +40,9 @@ export default function Sidebar({ active, onChange, userEmail, session, permisso
           if (!permissoes || permissoes.loading) return !m.soon && !m.adminOnly
           if (permissoes.isAdmin) return true
           if (m.soon) return false
-          return permissoes.podeVerModulo(m.modulo)
+          // Check directly from permissoes array
+          const permsArr = permissoes?.permissoes ?? []
+          return permsArr.some(p => p.modulo === m.modulo && p.pode_ver)
         }).map(m => {
           const isActive = active === m.id
           return (
