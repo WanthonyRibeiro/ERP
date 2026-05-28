@@ -1,4 +1,4 @@
-Cronograma
+# Gênova Cronograma
 
 App web para visualizar e gerenciar o cronograma da obra com Gantt interativo.
 

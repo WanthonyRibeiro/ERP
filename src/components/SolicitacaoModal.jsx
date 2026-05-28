@@ -1,4 +1,4 @@
-    import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 const URGENCIA_META = {
@@ -116,7 +116,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
     >
       <div style={{
         background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 16,
-        width: 700, maxWidth: '100%', maxHeight: '90vh',
+        width: 700, maxWidth: '100%', maxHeight: '90vh', margin: '0 8px',
         display: 'flex', flexDirection: 'column',
       }}>
         {/* Header */}
@@ -239,8 +239,8 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                     <input style={{ ...locked ? inpDisabled : inp, padding: '7px 10px' }} disabled={locked} value={it.descricao} onChange={e => setItem(it.id, 'descricao', e.target.value)} placeholder="Material ou serviço" />
                     <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} value={it.unidade} onChange={e => setItem(it.id, 'unidade', e.target.value)} />
                     <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} type="number" min="0" value={it.quantidade} onChange={e => setItem(it.id, 'quantidade', e.target.value)} />
-                    <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} type="number" min="0" step="0.01" value={it.valor_unitario} onChange={e => setItem(it.id, 'valor_unitario', e.target.value)} placeholder="0,00" />
-                    <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} value={it.fornecedor_sugerido} onChange={e => setItem(it.id, 'fornecedor_sugerido', e.target.value)} placeholder="Opcional" />
+                    <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} type="number" min="0" step="0.01" value={it.valor_unitario ?? ''} onChange={e => setItem(it.id, 'valor_unitario', e.target.value)} placeholder="0,00" />
+                    <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} value={it.fornecedor_sugerido ?? ''} onChange={e => setItem(it.id, 'fornecedor_sugerido', e.target.value)} placeholder="Opcional" />
                     <button onClick={() => removeItem(it.id)} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 16, cursor: 'pointer', padding: 0, alignSelf: 'center' }}>×</button>
                   </div>
                 ))}
@@ -362,5 +362,3 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
     </div>
   )
 }
-
-    

@@ -184,7 +184,14 @@ export default function Compras({ session, permissoes }) {
   }
 
   return (
-    <div style={{ flex: 1, padding: '28px', overflowY: 'auto', color: '#E2E8F0', fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ flex: 1, padding: '20px', overflowY: 'auto', color: '#E2E8F0', fontFamily: "'DM Sans', sans-serif" }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .sa-sc-row { grid-template-columns: 24px 1fr 80px !important; }
+          .sa-sc-row > *:nth-child(n+4) { display: none !important; }
+          .sa-table-header { display: none !important; }
+        }
+      `}</style>
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
@@ -342,7 +349,7 @@ export default function Compras({ session, permissoes }) {
                         ))}
                       </div>
                       {sol.itens.map(it => (
-                        <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '2fr 60px 70px 100px 1fr', gap: 8, marginBottom: 6 }}>
+                        <div key={it.id ?? it.descricao} style={{ display: 'grid', gridTemplateColumns: '2fr 60px 70px 100px 1fr', gap: 8, marginBottom: 6 }}>
                           <div style={{ fontSize: 12, color: '#94A3B8' }}>{it.descricao}</div>
                           <div style={{ fontSize: 12, color: '#64748B' }}>{it.unidade}</div>
                           <div style={{ fontSize: 12, color: '#64748B' }}>{it.quantidade}</div>

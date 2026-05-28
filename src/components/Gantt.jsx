@@ -1,4 +1,4 @@
-    import { useRef, useEffect } from 'react'
+import { useRef, useEffect } from 'react'
 
 export const CATEGORY_COLORS = {
   Porcelanato: '#3B82F6', Instalações: '#8B5CF6', Vinílico: '#10B981',
@@ -192,5 +192,3 @@ export default function Gantt({ tasks, onTaskClick, filter }) {
     </div>
   )
 }
-
-    

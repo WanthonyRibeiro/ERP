@@ -1,3 +1,4 @@
+import React from 'react'
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -155,7 +156,7 @@ export default function Configuracoes({ session }) {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-          {/* Admin (você) */}
+          {/* Admin (você) — não aparece na lista abaixo */
           <div style={{
             padding: '10px 12px', borderRadius: 8, marginBottom: 6,
             background: '#1E3A5F', border: '1px solid #1E3A5F',
@@ -166,7 +167,7 @@ export default function Configuracoes({ session }) {
             <div style={{ fontSize: 11, color: '#3B82F6', marginTop: 2 }}>Admin • Você</div>
           </div>
 
-          {usuarios.map(u => {
+          {usuarios.filter(u => u.user_id !== session.user.id).map(u => {
             const isSelected = selected?.user_id === u.user_id
             const role = ROLES[u.role] ?? ROLES.engenheiro
             return (
@@ -266,8 +267,8 @@ export default function Configuracoes({ session }) {
                   {MODULOS.map(m => {
                     const perm = getPerm(obra.id, m.id)
                     return (
-                      <>
-                        <div key={m.id} style={{ fontSize: 13, color: '#94A3B8', display: 'flex', alignItems: 'center' }}>{m.label}</div>
+                      <React.Fragment key={m.id}>
+                        <div style={{ fontSize: 13, color: '#94A3B8', display: 'flex', alignItems: 'center' }}>{m.label}</div>
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                           <button onClick={() => togglePerm(obra.id, m.id, 'pode_ver')} style={{
                             width: 28, height: 28, borderRadius: 6, border: 'none', cursor: 'pointer',
@@ -284,7 +285,7 @@ export default function Configuracoes({ session }) {
                             fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
                           }}>{perm?.pode_editar ? '✓' : '○'}</button>
                         </div>
-                      </>
+                      </React.Fragment>
                     )
                   })}
                 </div>

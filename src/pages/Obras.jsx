@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import ObraModal from '../components/ObraModal'
+import Documentos from './Documentos'
 
 const STATUS_META = {
   em_andamento: { label: 'Em andamento', color: '#10B981', bg: '#064E3B' },
@@ -15,7 +16,9 @@ function fmtDate(d) {
 
 export default function Obras({ session, permissoes }) {
   const [obras, setObras]   = useState([])
-  const [modal, setModal]   = useState(null)
+  const [modal,       setModal]       = useState(null)
+  const [obraDetalhe, setObraDetalhe] = useState(null)
+  const [abaDetalhe,  setAbaDetalhe]  = useState('info')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { fetchObras() }, [permissoes?.isAdmin, JSON.stringify(permissoes?.obrasIds)])
@@ -23,7 +26,6 @@ export default function Obras({ session, permissoes }) {
   async function fetchObras() {
     // RLS handles filtering — admin sees owned obras, others see permitted obras
     const { data, error } = await supabase.from('obras').select('*').order('created_at', { ascending: false })
-    console.log('obras data:', data, 'error:', error)
     setObras(data ?? [])
     setLoading(false)
   }
@@ -56,7 +58,7 @@ export default function Obras({ session, permissoes }) {
   return (
     <div style={{ flex: 1, padding: '28px', overflowY: 'auto', color: '#E2E8F0', fontFamily: "'DM Sans', sans-serif" }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>Obras</h1>
           <p style={{ fontSize: 13, color: '#475569' }}>Gerencie seus canteiros e acompanhe o status geral.</p>
@@ -98,7 +100,7 @@ export default function Obras({ session, permissoes }) {
             return (
               <div
                 key={obra.id}
-                onClick={() => setModal(obra)}
+                onClick={() => { setObraDetalhe(obra); setAbaDetalhe('info') }}
                 style={{
                   background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 12,
                   padding: '16px 20px', cursor: 'pointer', transition: 'border-color 0.15s',
@@ -135,6 +137,52 @@ export default function Obras({ session, permissoes }) {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Obra detalhe */}
+      {obraDetalhe && (
+        <div onClick={e => e.target === e.currentTarget && setObraDetalhe(null)} style={{
+          position: 'fixed', inset: 0, background: '#00000090',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: 16,
+        }}>
+          <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 16, width: 600, maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            {/* Header */}
+            <div style={{ padding: '18px 24px 0', borderBottom: '1px solid #1E2235', flexShrink: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9' }}>{obraDetalhe.nome}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { setModal(obraDetalhe); setObraDetalhe(null) }} style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✏️ Editar</button>
+                  <button onClick={() => setObraDetalhe(null)} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 22, cursor: 'pointer' }}>×</button>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {[{ id: 'info', label: 'Informações' }, { id: 'documentos', label: '📄 Documentos' }].map(a => (
+                  <button key={a.id} onClick={() => setAbaDetalhe(a.id)} style={{
+                    padding: '6px 16px', borderRadius: '7px 7px 0 0', border: 'none',
+                    background: abaDetalhe === a.id ? '#0F1117' : 'transparent',
+                    color: abaDetalhe === a.id ? '#F1F5F9' : '#475569',
+                    fontSize: 13, fontWeight: abaDetalhe === a.id ? 600 : 400, cursor: 'pointer',
+                    borderBottom: abaDetalhe === a.id ? '2px solid #3B82F6' : '2px solid transparent',
+                  }}>{a.label}</button>
+                ))}
+              </div>
+            </div>
+            {/* Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+              {abaDetalhe === 'info' && (
+                <div>
+                  {obraDetalhe.endereco && <div style={{ marginBottom: 12 }}><span style={{ fontSize: 11, color: '#475569' }}>Endereço</span><div style={{ fontSize: 13, color: '#F1F5F9', marginTop: 3 }}>{obraDetalhe.endereco}</div></div>}
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    {obraDetalhe.data_inicio && <div><span style={{ fontSize: 11, color: '#475569' }}>Início</span><div style={{ fontSize: 13, color: '#F1F5F9', marginTop: 3 }}>{new Date(obraDetalhe.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR')}</div></div>}
+                    {obraDetalhe.data_prevista && <div><span style={{ fontSize: 11, color: '#475569' }}>Previsão</span><div style={{ fontSize: 13, color: '#F1F5F9', marginTop: 3 }}>{new Date(obraDetalhe.data_prevista + 'T00:00:00').toLocaleDateString('pt-BR')}</div></div>}
+                  </div>
+                </div>
+              )}
+              {abaDetalhe === 'documentos' && <Documentos obra={obraDetalhe} />}
+            </div>
+          </div>
         </div>
       )}
 

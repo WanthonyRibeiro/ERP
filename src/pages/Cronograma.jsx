@@ -46,7 +46,7 @@ function ObrasList({ obras, onSelect, loading }) {
             style={{
               background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 12,
               padding: '18px 22px', cursor: 'pointer', transition: 'all 0.15s',
-              display: 'flex', alignItems: 'center', gap: 16,
+              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
             }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#3B82F640'; e.currentTarget.style.background = '#1E2235' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#1E2235'; e.currentTarget.style.background = '#1A1D2E' }}

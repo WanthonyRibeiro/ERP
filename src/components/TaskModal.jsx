@@ -1,4 +1,4 @@
-    import { useState } from 'react'
+import { useState } from 'react'
 
 const CATEGORIES = ['Porcelanato','Instalações','Vinílico','Esquadrias','Gesso','Pintura','Acabamento','Geral']
 
@@ -68,7 +68,7 @@ export default function TaskModal({ task, onSave, onDelete, onClose }) {
           </div>
           <div style={{ flex: 1 }}>
             <label style={lbl}>Responsável</label>
-            <input style={inp} value={form.responsible} onChange={e => set('responsible', e.target.value)} placeholder="Nome (opcional)" />
+            <input style={inp} value={form.responsible ?? ''} onChange={e => set('responsible', e.target.value)} placeholder="Nome (opcional)" />
           </div>
         </div>
 
@@ -112,7 +112,7 @@ export default function TaskModal({ task, onSave, onDelete, onClose }) {
         <label style={lbl}>Observações</label>
         <textarea
           style={{ ...inp, resize: 'vertical', minHeight: 72, fontFamily: 'inherit' }}
-          value={form.notes} onChange={e => set('notes', e.target.value)}
+          value={form.notes ?? ''} onChange={e => set('notes', e.target.value)}
           placeholder="Notas, pendências, detalhes..."
         />
 
@@ -141,5 +141,3 @@ export default function TaskModal({ task, onSave, onDelete, onClose }) {
     </div>
   )
 }
-
-    

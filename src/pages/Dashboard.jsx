@@ -1,4 +1,4 @@
-    import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import Gantt, { CATEGORY_COLORS } from '../components/Gantt'
@@ -274,5 +274,3 @@ export default function Dashboard({ session }) {
     </div>
   )
 }
-
-    
