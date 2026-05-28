@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase'
 
-const MODULES = [
+const ALL_MODULES = [
   { id: 'obras',      icon: '🏗️',  label: 'Obras'      },
   { id: 'compras',    icon: '🛒',  label: 'Compras'    },
   { id: 'cronograma', icon: '📅',  label: 'Cronograma' },
