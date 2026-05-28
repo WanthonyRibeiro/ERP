@@ -36,10 +36,11 @@ export default function Sidebar({ active, onChange, userEmail, session, permisso
       {/* Nav */}
       <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {ALL_MODULES.filter(m => {
-          if (m.adminOnly) return permissoes?.isAdmin ?? true
-          if (permissoes?.isAdmin) return true
+          if (m.adminOnly) return permissoes?.isAdmin ?? false
+          if (!permissoes || permissoes.loading) return !m.soon && !m.adminOnly
+          if (permissoes.isAdmin) return true
           if (m.soon) return false
-          return permissoes?.podeVerModulo(m.modulo) ?? true
+          return permissoes.podeVerModulo(m.modulo)
         }).map(m => {
           const isActive = active === m.id
           return (
