@@ -156,7 +156,7 @@ export default function Configuracoes({ session }) {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-          {/* Admin (você) — não aparece na lista abaixo */
+          {/* Admin (você) — não aparece na lista abaixo */}
           <div style={{
             padding: '10px 12px', borderRadius: 8, marginBottom: 6,
             background: '#1E3A5F', border: '1px solid #1E3A5F',
