@@ -18,7 +18,7 @@ export function usePermissoes(session) {
       .from('user_profiles')
       .select('role')
       .eq('user_id', session.user.id)
-      .single()
+      .maybeSingle()
 
     // Se não tem perfil ou é admin, tem acesso total
     if (!profile || profile.role === 'admin') {
