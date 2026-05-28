@@ -183,13 +183,19 @@ export default function Compras({ session, permissoes }) {
     background: '#0F1117', color: '#94A3B8', fontSize: 12, outline: 'none', cursor: 'pointer',
   }
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768
+
   return (
     <div style={{ flex: 1, padding: '20px', overflowY: 'auto', color: '#E2E8F0', fontFamily: "'DM Sans', sans-serif" }}>
       <style>{`
         @media (max-width: 768px) {
-          .sa-sc-row { grid-template-columns: 24px 1fr 80px !important; }
-          .sa-sc-row > *:nth-child(n+4) { display: none !important; }
           .sa-table-header { display: none !important; }
+          .sa-sc-desktop   { display: none !important; }
+          .sa-sc-mobile    { display: flex !important; }
+        }
+        @media (min-width: 769px) {
+          .sa-sc-mobile { display: none !important; }
+          .sa-sc-desktop { display: grid !important; }
         }
       `}</style>
 
@@ -274,8 +280,8 @@ export default function Compras({ session, permissoes }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {/* Table header */}
-          <div style={{
+          {/* Table header — desktop only */}
+          <div className="sa-table-header" style={{
             display: 'grid', gridTemplateColumns: '24px 2fr 70px 1fr 110px 100px 110px 100px 36px',
             padding: '0 16px', gap: 12,
           }}>
@@ -290,9 +296,12 @@ export default function Compras({ session, permissoes }) {
             const isExpanded = expanded === sol.id
             return (
               <div key={sol.id} style={{ marginBottom: 6 }}>
+
+              {/* ── DESKTOP ROW ── */}
               <div
+                className="sa-sc-desktop"
                 style={{
-                  display: 'grid', gridTemplateColumns: '24px 2fr 70px 1fr 110px 100px 110px 100px 36px',
+                  gridTemplateColumns: '24px 2fr 70px 1fr 110px 100px 110px 100px 36px',
                   background: '#1A1D2E', border: `1px solid ${isExpanded ? '#334155' : '#1E2235'}`,
                   borderRadius: isExpanded ? '10px 10px 0 0' : 10,
                   padding: '13px 16px', gap: 12, cursor: 'pointer', alignItems: 'center',
@@ -308,12 +317,8 @@ export default function Compras({ session, permissoes }) {
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#F1F5F9', marginBottom: 2 }}>{sol.titulo}</div>
                   {sol.solicitante_nome && <div style={{ fontSize: 11, color: '#475569' }}>por {sol.solicitante_nome}</div>}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#94A3B8', textAlign: 'center' }}>
-                  {sol.itens?.length ?? 0}
-                </div>
-                <div style={{ fontSize: 12, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {sol.obra?.nome ?? '—'}
-                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#94A3B8', textAlign: 'center' }}>{sol.itens?.length ?? 0}</div>
+                <div style={{ fontSize: 12, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sol.obra?.nome ?? '—'}</div>
                 <div style={{ fontSize: 12, color: sol.prazo_entrega ? '#94A3B8' : '#334155' }}>
                   {sol.prazo_entrega ? new Date(sol.prazo_entrega + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}
                 </div>
@@ -322,16 +327,45 @@ export default function Compras({ session, permissoes }) {
                 <div style={{ fontSize: 11, color: '#475569' }} onClick={() => setModal(sol)}>{fmtDate(sol.created_at)}</div>
                 <button
                   onClick={e => { e.stopPropagation(); setModal(sol) }}
-                  title="Editar"
-                  style={{
-                    background: 'none', border: '1px solid #1E2235', borderRadius: 6,
-                    color: '#475569', fontSize: 13, cursor: 'pointer', padding: '4px 6px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'all 0.15s',
-                  }}
+                  style={{ background: 'none', border: '1px solid #1E2235', borderRadius: 6, color: '#475569', fontSize: 13, cursor: 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = '#3B82F6'; e.currentTarget.style.color = '#3B82F6' }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = '#1E2235'; e.currentTarget.style.color = '#475569' }}
                 >✏️</button>
+              </div>
+
+              {/* ── MOBILE CARD ── */}
+              <div
+                className="sa-sc-mobile"
+                onClick={() => setExpanded(isExpanded ? null : sol.id)}
+                style={{
+                  flexDirection: 'column',
+                  background: '#1A1D2E', border: `1px solid ${isExpanded ? '#334155' : '#1E2235'}`,
+                  borderRadius: isExpanded ? '10px 10px 0 0' : 10,
+                  padding: '12px 14px', cursor: 'pointer', transition: 'border-color 0.15s',
+                }}
+              >
+                {/* Linha 1: título + botão editar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#F1F5F9', lineHeight: 1.3 }}>{sol.titulo}</div>
+                    {sol.solicitante_nome && <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>por {sol.solicitante_nome}</div>}
+                  </div>
+                  <button
+                    onClick={e => { e.stopPropagation(); setModal(sol) }}
+                    style={{ background: 'none', border: '1px solid #1E2235', borderRadius: 6, color: '#475569', fontSize: 13, cursor: 'pointer', padding: '4px 8px', flexShrink: 0 }}
+                  >✏️</button>
+                </div>
+                {/* Linha 2: badges */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  <Badge meta={umeta} />
+                  <Badge meta={smeta} />
+                </div>
+                {/* Linha 3: metadados em linha */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 11, color: '#64748B' }}>
+                  <span>🏗️ {sol.obra?.nome ?? '—'}</span>
+                  <span>📦 {sol.itens?.length ?? 0} iten{sol.itens?.length !== 1 ? 's' : ''}</span>
+                  {sol.prazo_entrega && <span>📅 {new Date(sol.prazo_entrega + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
+                </div>
               </div>
               {/* Linha expandida com itens */}
               {isExpanded && (
