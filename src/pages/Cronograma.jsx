@@ -285,17 +285,23 @@ function ObraGantt({ obra, session, onBack }) {
 }
 
 // ── Componente principal ──────────────────────────────────────────────────
-export default function Cronograma({ session }) {
+export default function Cronograma({ session, permissoes }) {
   const [obras,       setObras]       = useState([])
   const [obraSelecionada, setObraSelecionada] = useState(null)
   const [loading,     setLoading]     = useState(true)
 
   useEffect(() => {
     async function fetchObras() {
-      const { data } = await supabase
-        .from('obras').select('*')
-        .eq('owner_id', session.user.id)
-        .order('created_at', { ascending: false })
+      const isAdmin = permissoes?.isAdmin ?? true
+      let query = supabase.from('obras').select('*').order('created_at', { ascending: false })
+      if (isAdmin) {
+        query = query.eq('owner_id', session.user.id)
+      } else {
+        const ids = permissoes?.obrasIds ?? []
+        if (!ids.length) { setObras([]); setLoading(false); return }
+        query = query.in('id', ids)
+      }
+      const { data } = await query
       setObras(data ?? [])
       setLoading(false)
     }
