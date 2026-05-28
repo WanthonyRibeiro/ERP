@@ -13,25 +13,29 @@ export function usePermissoes(session) {
   }, [session?.user?.id])
 
   async function load() {
-    // Verifica se tem perfil cadastrado
-    const { data: profile } = await supabase
+    console.log('usePermissoes: loading for', session.user.email)
+
+    const { data: profile, error: e1 } = await supabase
       .from('user_profiles')
       .select('role')
       .eq('user_id', session.user.id)
       .maybeSingle()
 
-    // Se não tem perfil ou é admin, tem acesso total
+    console.log('usePermissoes: profile=', profile, 'error=', e1)
+
     if (!profile || profile.role === 'admin') {
+      console.log('usePermissoes: is admin')
       setIsAdmin(true)
       setLoading(false)
       return
     }
 
-    // Busca permissões
-    const { data: perms } = await supabase
+    const { data: perms, error: e2 } = await supabase
       .from('user_permissoes')
       .select('*')
       .eq('user_id', session.user.id)
+
+    console.log('usePermissoes: perms=', perms, 'error=', e2)
 
     setPermissoes(perms ?? [])
     setObrasIds([...new Set((perms ?? []).filter(p => p.pode_ver).map(p => p.obra_id))])
