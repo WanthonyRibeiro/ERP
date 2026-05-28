@@ -13,7 +13,7 @@ function fmtDate(d) {
   return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export default function Obras({ session }) {
+export default function Obras({ session, permissoes }) {
   const [obras, setObras]   = useState([])
   const [modal, setModal]   = useState(null)
   const [loading, setLoading] = useState(true)
@@ -21,7 +21,16 @@ export default function Obras({ session }) {
   useEffect(() => { fetchObras() }, [])
 
   async function fetchObras() {
-    const { data } = await supabase.from('obras').select('*').eq('owner_id', session.user.id).order('created_at', { ascending: false })
+    const isAdmin = permissoes?.isAdmin ?? true
+    let query = supabase.from('obras').select('*').order('created_at', { ascending: false })
+    if (isAdmin) {
+      query = query.eq('owner_id', session.user.id)
+    } else {
+      const ids = permissoes?.obrasIds ?? []
+      if (!ids.length) { setObras([]); setLoading(false); return }
+      query = query.in('id', ids)
+    }
+    const { data } = await query
     setObras(data ?? [])
     setLoading(false)
   }
