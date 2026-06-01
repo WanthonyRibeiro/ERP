@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 
 const URGENCIA_META = {
@@ -80,6 +81,79 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
     setHistorico(data ?? [])
     setLoadingHist(false)
   }
+
+
+  const importFileRef = useRef()
+
+  async function handleImportFile(e) {
+    const file = e.target.files[0]; if (!file) return
+    const ext = file.name.split('.').pop().toLowerCase()
+
+    // CSV or XLSX
+    if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
+      const buf = await file.arrayBuffer()
+      const wb  = XLSX.read(buf, { cellDates: true })
+      const ws  = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(ws, { raw: false })
+      const imported = rows
+        .filter(r => r['Descrição'] || r['Descricao'] || r['descricao'] || r['Item'] || r['item'])
+        .map(r => ({
+          id: Date.now() + Math.random(),
+          descricao:           r['Descrição'] || r['Descricao'] || r['descricao'] || r['Item'] || r['item'] || '',
+          unidade:             r['Unidade']   || r['unidade']   || r['Un'] || 'un',
+          quantidade:          r['Quantidade'] || r['quantidade'] || r['Qtde'] || r['qtde'] || 1,
+          valor_unitario:      r['Valor Unit'] || r['Valor Unitário'] || r['valor_unit'] || r['Valor'] || '',
+          fornecedor_sugerido: r['Fornecedor'] || r['fornecedor'] || '',
+        }))
+      if (imported.length) {
+        setItems(its => [...its.filter(i => i.descricao?.trim()), ...imported])
+        showImportToast(`${imported.length} itens importados!`)
+      } else {
+        showImportToast('Nenhum item encontrado. Verifique as colunas.')
+      }
+    }
+
+    // Imagem — envia para Claude analisar (via API Anthropic)
+    if (['jpg','jpeg','png','webp'].includes(ext)) {
+      showImportToast('Analisando imagem...', 'loading')
+      const reader = new FileReader()
+      reader.onload = async (ev) => {
+        const base64 = ev.target.result.split(',')[1]
+        try {
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 1000,
+              messages: [{
+                role: 'user',
+                content: [
+                  { type: 'image', source: { type: 'base64', media_type: `image/${ext==='jpg'?'jpeg':ext}`, data: base64 } },
+                  { type: 'text', text: 'Extraia os itens desta lista de compras/materiais. Responda APENAS em JSON no formato: {"itens":[{"descricao":"...","unidade":"un","quantidade":1,"valor_unitario":"","fornecedor_sugerido":""}]}. Sem texto adicional.' }
+                ]
+              }]
+            })
+          })
+          const data = await res.json()
+          const text = data.content?.[0]?.text ?? ''
+          const clean = text.replace(/```json|```/g,'').trim()
+          const parsed = JSON.parse(clean)
+          if (parsed.itens?.length) {
+            setItems(its => [...its.filter(i=>i.descricao?.trim()), ...parsed.itens.map(it=>({...it,id:Date.now()+Math.random()}))])
+            showImportToast(`${parsed.itens.length} itens extraídos da imagem!`)
+          }
+        } catch(err) {
+          showImportToast('Erro ao analisar imagem.')
+        }
+      }
+      reader.readAsDataURL(file)
+    }
+    e.target.value = ''
+  }
+
+  const [importToast, setImportToast] = useState(null)
+  function showImportToast(msg, type='success') { setImportToast({msg,type}); if(type!=='loading') setTimeout(()=>setImportToast(null),3000) }
 
   function addItem()         { if (!locked) setItems(its => [...its, newItem()]) }
   function removeItem(id)    { setItems(its => its.filter(i => i.id !== id)) }
@@ -226,7 +300,13 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <label style={{ ...lbl, marginBottom: 0 }}>Itens solicitados</label>
                   {!locked && (
+                    <div style={{display:'flex',gap:6}}>
+                    <label style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#64748B', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      ↑ Importar
+                      <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp" style={{display:'none'}} onChange={handleImportFile} />
+                    </label>
                     <button onClick={addItem} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #1E3A5F', background: 'transparent', color: '#3B82F6', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Adicionar item</button>
+                  </div>
                   )}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 60px 70px 100px 1fr 28px', gap: 6, marginBottom: 6 }}>
@@ -315,6 +395,12 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
             </div>
           )}
         </div>
+
+        {importToast && (
+          <div style={{position:'fixed',bottom:80,right:24,background:importToast.type==='loading'?'#1E3A5F':'#064E3B',border:`1px solid ${importToast.type==='loading'?'#3B82F6':'#065F46'}`,color:importToast.type==='loading'?'#93C5FD':'#6EE7B7',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:600,zIndex:2001}}>
+            {importToast.type==='loading'?'⏳':''} {importToast.msg}
+          </div>
+        )}
 
         {/* Footer */}
         <div style={{

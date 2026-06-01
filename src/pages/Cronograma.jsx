@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import Gantt, { CATEGORY_COLORS } from '../components/Gantt'
@@ -70,6 +70,52 @@ function ObrasList({ obras, onSelect, loading }) {
               }}>{meta.label}</div>
               <div style={{ fontSize: 20, color: '#334155' }}>›</div>
             </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+
+// ── Alertas de boletos ────────────────────────────────────────────────────
+function BoletosAlerta({ obraId }) {
+  const [boletos, setBoletos] = React.useState([])
+
+  React.useEffect(() => {
+    async function load() {
+      const { data } = await supabase.from('boletos').select('descricao,valor,vencimento,status').eq('obra_id', obraId).neq('status','pago').order('vencimento')
+      const today = new Date(); today.setHours(0,0,0,0)
+      const alertas = (data??[]).filter(b => {
+        const dt = new Date(b.vencimento+'T00:00:00')
+        const diff = Math.round((dt-today)/86400000)
+        return diff <= 30
+      })
+      setBoletos(alertas)
+    }
+    load()
+  }, [obraId])
+
+  if (!boletos.length) return null
+
+  return (
+    <div style={{ padding: '10px 24px', borderBottom: '1px solid #1E2235', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {boletos.map((b,i) => {
+        const dt = new Date(b.vencimento+'T00:00:00')
+        const today = new Date(); today.setHours(0,0,0,0)
+        const diff = Math.round((dt-today)/86400000)
+        const vencido = diff < 0
+        return (
+          <div key={i} style={{
+            padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+            background: vencido ? '#450A0A' : diff <= 7 ? '#450A0A' : '#451A03',
+            color: vencido ? '#FCA5A5' : diff <= 7 ? '#FCA5A5' : '#FCD34D',
+            border: `1px solid ${vencido ? '#991B1B' : diff <= 7 ? '#991B1B' : '#92400E'}`,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span>{vencido ? '⚠️' : '📄'}</span>
+            <span>{b.descricao}: {vencido ? `vencido há ${Math.abs(diff)}d` : `vence em ${diff}d`}</span>
+            <span style={{ opacity: 0.7 }}>({Number(b.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})})</span>
           </div>
         )
       })}
@@ -212,7 +258,7 @@ function ObraGantt({ obra, session, onBack }) {
           </button>
           <label style={{ ...btnBase, background: '#1E2235', color: '#94A3B8', cursor: 'pointer' }}>
             ↑ Importar Excel
-            <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImport} />
+            <input type="file" accept=".xlsx,.xls,.mpp" style={{ display: 'none' }} onChange={handleImport} />
           </label>
           <button onClick={handleExport} style={{ ...btnBase, background: '#1E2235', color: '#94A3B8' }}>
             ↓ Exportar Excel
@@ -238,7 +284,10 @@ function ObraGantt({ obra, session, onBack }) {
         ))}
       </div>
 
-      {/* Filtros */}
+
+      {/* Alertas de boletos */}
+      <BoletosAlerta obraId={obra.id} />
+      {/* Filtros */
       <div style={{ display: 'flex', gap: 6, padding: '10px 24px', flexWrap: 'wrap', borderBottom: '1px solid #1E2235', flexShrink: 0 }}>
         {CATEGORIES.map(cat => {
           const active = filter === cat
