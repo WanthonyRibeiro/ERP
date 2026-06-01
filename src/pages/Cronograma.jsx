@@ -287,7 +287,7 @@ function ObraGantt({ obra, session, onBack }) {
 
       {/* Alertas de boletos */}
       <BoletosAlerta obraId={obra.id} />
-      {/* Filtros */
+      {/* Filtros */}
       <div style={{ display: 'flex', gap: 6, padding: '10px 24px', flexWrap: 'wrap', borderBottom: '1px solid #1E2235', flexShrink: 0 }}>
         {CATEGORIES.map(cat => {
           const active = filter === cat
