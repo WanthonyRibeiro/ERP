@@ -171,28 +171,74 @@ function ObraGantt({ obra, session, onBack }) {
   async function handleImport(e) {
     const file = e.target.files[0]
     if (!file) return
+
+    // .mpp não é suportado diretamente
+    if (file.name.toLowerCase().endsWith('.mpp')) {
+      showToast('Arquivo .mpp não suportado. Exporte como Excel no MS Project.')
+      e.target.value = ''
+      return
+    }
+
     const buf  = await file.arrayBuffer()
     const wb   = XLSX.read(buf, { cellDates: true })
-    const ws   = wb.Sheets[wb.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' })
+
+    // Tenta achar a sheet de tarefas (Task_Table ou primeira)
+    const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('task')) ?? wb.SheetNames[0]
+    const ws   = wb.Sheets[sheetName]
+    const rows = XLSX.utils.sheet_to_json(ws, { raw: false, dateNF: 'yyyy-mm-dd' })
 
     const toInsert = []
-    const startRow = (rows[0] && typeof rows[0][0] === 'string' && rows[0][0].toLowerCase().includes('tare')) ? 1 : 0
 
-    for (let i = startRow; i < rows.length; i++) {
-      const row   = rows[i]
-      const cells = row.filter(c => c !== null && c !== undefined && c !== '')
-      if (cells.length < 3) continue
+    // Detecta formato MS Project (colunas: Name, Start, Finish, Outline Level)
+    const isMSProject = rows[0] && ('Name' in rows[0] || ' Name' in rows[0] || 'Task Name' in rows[0])
 
-      const label = row.find(c => typeof c === 'string' && c.trim().length > 3 && !/^\d{4}-\d{2}-\d{2}$/.test(c.trim()))?.trim()
-      if (!label) continue
+    if (isMSProject) {
+      // Mapeamento de categorias por nível de outline
+      let currentCategory = 'Geral'
+      for (const row of rows) {
+        const name     = (row['Name'] ?? row[' Name'] ?? row['Task Name'] ?? '').trim()
+        const start    = row['Start']  ?? row[' Start']  ?? ''
+        const finish   = row['Finish'] ?? row[' Finish'] ?? ''
+        const level    = parseInt(row['Outline Level'] ?? row[' Outline Level'] ?? '3')
+        if (!name || !start || !finish) continue
 
-      const strings  = row.filter(c => typeof c === 'string' && c.trim().length > 0 && !/^\d{4}-\d{2}-\d{2}$/.test(c.trim()))
-      const category = strings.length > 1 ? strings[1] : 'Geral'
-      const dates    = row.filter(c => typeof c === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(c.trim()))
-      if (dates.length < 2) continue
+        // Nível 1 = projeto, Nível 2 = categoria, Nível 3+ = tarefa
+        if (level === 1) continue
+        if (level === 2) { currentCategory = name.trim(); continue }
 
-      toInsert.push({ obra_id: obra.id, label, category, start_date: dates[0], end_date: dates[1], progress: 0 })
+        // Converte datas do formato MS Project "Mon 5/18/26" → "2026-05-18"
+        function parseMSDate(s) {
+          if (!s) return null
+          if (/\d{4}-\d{2}-\d{2}/.test(s)) return s
+          const clean = s.replace(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+/i, '')
+          const d = new Date(clean)
+          if (!isNaN(d)) return d.toISOString().slice(0,10)
+          return null
+        }
+
+        const sd = parseMSDate(start)
+        const ed = parseMSDate(finish)
+        if (!sd || !ed) continue
+
+        toInsert.push({
+          obra_id: obra.id,
+          label: name,
+          category: currentCategory,
+          start_date: sd,
+          end_date: ed,
+          progress: 0,
+        })
+      }
+    } else {
+      // Formato genérico: colunas Tarefa/Task, Categoria, Início, Fim
+      for (const row of rows) {
+        const label    = row['Tarefa'] ?? row['Task'] ?? row['Nome'] ?? row['Name'] ?? row['label'] ?? ''
+        const category = row['Categoria'] ?? row['Category'] ?? row['category'] ?? 'Geral'
+        const start    = row['Início'] ?? row['Inicio'] ?? row['Start'] ?? row['start_date'] ?? ''
+        const end      = row['Fim'] ?? row['End'] ?? row['Finish'] ?? row['end_date'] ?? ''
+        if (!label || !start || !end) continue
+        toInsert.push({ obra_id: obra.id, label: label.trim(), category, start_date: start, end_date: end, progress: 0 })
+      }
     }
 
     if (toInsert.length) {
@@ -200,7 +246,7 @@ function ObraGantt({ obra, session, onBack }) {
       await fetchTasks()
       showToast(`${toInsert.length} tarefas importadas!`)
     } else {
-      showToast('Nenhuma tarefa encontrada no arquivo.')
+      showToast('Nenhuma tarefa encontrada. Verifique o formato do arquivo.')
     }
     e.target.value = ''
   }
