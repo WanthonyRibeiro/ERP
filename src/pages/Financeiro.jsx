@@ -1008,6 +1008,8 @@ function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
     observacoes:    contrato?.observacoes    ?? '',
     arquivo_url:    contrato?.arquivo_url    ?? '',
     arquivo_nome:   contrato?.arquivo_nome   ?? '',
+    numero_documento: contrato?.numero_documento ?? '',
+    tipo_documento:   contrato?.tipo_documento   ?? 'contrato',
   })
   const setF = (k,v) => setForm(f=>({...f,[k]:v}))
   const [reading,  setReading]  = useState(false)
@@ -1051,14 +1053,37 @@ function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
       const parsed = await res.json()
       if (parsed.error) throw new Error(parsed.error)
 
-      // Tenta vincular fornecedor pelo nome
-      let fornId = ''
-      if (parsed.fornecedor_nome) {
-        const match = fornecedores.find(f =>
-          f.nome.toLowerCase().includes(parsed.fornecedor_nome.toLowerCase()) ||
-          parsed.fornecedor_nome.toLowerCase().includes(f.nome.toLowerCase())
+      // Busca ou cria fornecedor automaticamente
+      let fornId = form.fornecedor_id || ''
+      if (parsed.fornecedor_cnpj || parsed.fornecedor_nome) {
+        const { data: fors } = await supabase.from('fornecedores').select('id,nome,cnpj')
+        const cnpjLimpo = (parsed.fornecedor_cnpj ?? '').replace(/\D/g,'')
+
+        // Busca por CNPJ primeiro, depois por nome
+        const match = (fors??[]).find(f =>
+          (cnpjLimpo && f.cnpj?.replace(/\D/g,'') === cnpjLimpo) ||
+          (parsed.fornecedor_nome && f.nome?.toLowerCase().includes(parsed.fornecedor_nome.toLowerCase()))
         )
-        if (match) fornId = match.id
+
+        if (match) {
+          fornId = match.id
+          setReadMsg('✅ Contrato lido! Fornecedor encontrado: ' + match.nome)
+        } else if (parsed.fornecedor_nome) {
+          // Cria fornecedor automaticamente
+          const { data: novoForn } = await supabase.from('fornecedores').insert({
+            owner_id: (await supabase.auth.getUser()).data.user.id,
+            nome:      parsed.fornecedor_nome,
+            cnpj:      cnpjLimpo ? cnpjLimpo.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5') : null,
+            telefone:  parsed.fornecedor_telefone || null,
+            email:     parsed.fornecedor_email    || null,
+            categoria: parsed.fornecedor_categoria || 'Serviços Gerais',
+            ativo:     true,
+          }).select().single()
+          if (novoForn) {
+            fornId = novoForn.id
+            setReadMsg('✅ Contrato lido! Fornecedor "' + parsed.fornecedor_nome + '" criado automaticamente.')
+          }
+        }
       }
 
       setForm(f => ({
@@ -1073,6 +1098,8 @@ function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
         reajuste:     TIPOS_REAJUSTE.includes(parsed.reajuste) ? parsed.reajuste : (parsed.reajuste && parsed.reajuste!=='Nenhum' ? 'Outro' : 'Nenhum'),
         observacoes:  parsed.observacoes  || f.observacoes,
         fornecedor_id: fornId || f.fornecedor_id,
+        numero_documento: parsed.numero_documento || f.numero_documento || '',
+        tipo_documento:   parsed.tipo_documento   || f.tipo_documento   || 'contrato',
       }))
       setReadMsg(`✅ Contrato lido! ${!fornId && parsed.fornecedor_nome ? `Fornecedor "${parsed.fornecedor_nome}" não encontrado no cadastro.` : ''}`.trim())
     } catch(err) {
@@ -1257,6 +1284,8 @@ function Contratos({ obra }) {
       observacoes:     form.observacoes,
       arquivo_url:     form.arquivo_url  || null,
       arquivo_nome:    form.arquivo_nome || null,
+      numero_documento: form.numero_documento || null,
+      tipo_documento:   form.tipo_documento   || 'contrato',
     }
     if (modal?.id) {
       await supabase.from('contratos').update(payload).eq('id', modal.id)
