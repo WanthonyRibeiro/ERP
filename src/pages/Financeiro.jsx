@@ -297,12 +297,224 @@ function AvancoMensal({ obra }) {
 }
 
 // ── BOLETOS ───────────────────────────────────────────────────────────────
+const BANCOS = ['Bradesco','Itaú','Banco do Brasil','Caixa Econômica','Santander','Sicoob','Sicredi','Nubank','Inter','BTG','Outro']
+
+function BoletoDetalheModal({ boleto, onSave, onClose }) {
+  const [form, setForm] = useState({
+    banco:          boleto.banco          ?? '',
+    agencia:        boleto.agencia        ?? '',
+    conta:          boleto.conta          ?? '',
+    favorecido:     boleto.favorecido     ?? boleto.fornecedor ?? '',
+    cnpj_favorecido:boleto.cnpj_favorecido?? '',
+    linha_digitavel:boleto.linha_digitavel?? '',
+    codigo_barras:  boleto.codigo_barras  ?? '',
+    nosso_numero:   boleto.nosso_numero   ?? '',
+    instrucoes:     boleto.instrucoes     ?? '',
+  })
+  const setF = (k,v) => setForm(f=>({...f,[k]:v}))
+  const [imprimindo, setImprimindo] = useState(false)
+
+  function emitirBoleto() {
+    setImprimindo(true)
+    const w = window.open('','_blank','width=800,height=600')
+    const venc = boleto.vencimento ? new Date(boleto.vencimento+'T00:00:00').toLocaleDateString('pt-BR') : '—'
+    const emis = boleto.emissao    ? new Date(boleto.emissao+'T00:00:00').toLocaleDateString('pt-BR')    : '—'
+    const valor = Number(boleto.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
+
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Boleto</title>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
+      body{background:#fff;color:#000;padding:20px}
+      .header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:8px}
+      .logo{font-size:20px;font-weight:bold}
+      .banco{font-size:18px;font-weight:bold;border-left:2px solid #000;border-right:2px solid #000;padding:0 12px}
+      .codigo-banco{font-size:16px;font-weight:bold}
+      .linha{font-size:13px;letter-spacing:1px;text-align:right;flex:1;padding-left:12px}
+      .grid{display:grid;gap:0}
+      .row{display:flex;border-bottom:1px solid #000}
+      .cell{border-right:1px solid #000;padding:4px 8px;flex:1}
+      .cell:last-child{border-right:none}
+      .cell-label{font-size:9px;color:#555;text-transform:uppercase;margin-bottom:2px}
+      .cell-value{font-size:12px;font-weight:bold}
+      .barcode{text-align:center;margin:16px 0;padding:12px;border:1px solid #000}
+      .barcode-text{font-family:monospace;font-size:11px;letter-spacing:2px;word-break:break-all}
+      .instrucoes{border:1px solid #000;padding:8px;margin-top:8px;min-height:60px}
+      .instrucoes-label{font-size:9px;color:#555;margin-bottom:4px}
+      .footer{margin-top:16px;border-top:1px dashed #000;padding-top:8px;font-size:10px;color:#555;text-align:center}
+      h3{font-size:13px;margin-bottom:8px;margin-top:12px;border-bottom:1px solid #ccc;padding-bottom:4px}
+      @media print{body{padding:10px}.no-print{display:none}}
+    </style></head><body>
+    <div class="no-print" style="margin-bottom:12px">
+      <button onclick="window.print()" style="padding:8px 20px;background:#1a56db;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:14px">🖨️ Imprimir / Salvar PDF</button>
+      <button onclick="window.close()" style="padding:8px 16px;background:#e5e7eb;color:#111;border:none;border-radius:4px;cursor:pointer;font-size:14px;margin-left:8px">Fechar</button>
+    </div>
+
+    <div class="header">
+      <div class="logo">SA Pride Construtora</div>
+      <div class="banco">${form.banco||'BANCO'}</div>
+      <div class="codigo-banco">${form.banco==='Bradesco'?'237':form.banco==='Itaú'?'341':form.banco==='Banco do Brasil'?'001':form.banco==='Caixa Econômica'?'104':form.banco==='Santander'?'033':'000'}-9</div>
+      <div class="linha">${form.linha_digitavel||'00000.00000 00000.000000 00000.000000 0 00000000000000'}</div>
+    </div>
+
+    <div class="grid">
+      <div class="row">
+        <div class="cell" style="flex:3">
+          <div class="cell-label">Beneficiário</div>
+          <div class="cell-value">${form.favorecido||boleto.fornecedor||'—'}</div>
+        </div>
+        <div class="cell">
+          <div class="cell-label">CNPJ/CPF</div>
+          <div class="cell-value">${form.cnpj_favorecido||'—'}</div>
+        </div>
+        <div class="cell">
+          <div class="cell-label">Agência/Conta</div>
+          <div class="cell-value">${form.agencia||'—'}/${form.conta||'—'}</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="cell" style="flex:3">
+          <div class="cell-label">Pagador</div>
+          <div class="cell-value">${boleto.descricao}</div>
+        </div>
+        <div class="cell">
+          <div class="cell-label">Nosso Número</div>
+          <div class="cell-value">${form.nosso_numero||'—'}</div>
+        </div>
+        <div class="cell">
+          <div class="cell-label">Nº Documento</div>
+          <div class="cell-value">${boleto.observacoes||'—'}</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="cell">
+          <div class="cell-label">Data de Emissão</div>
+          <div class="cell-value">${emis}</div>
+        </div>
+        <div class="cell">
+          <div class="cell-label">Vencimento</div>
+          <div class="cell-value" style="color:#c00;font-size:14px">${venc}</div>
+        </div>
+        <div class="cell">
+          <div class="cell-label">Espécie</div>
+          <div class="cell-value">R$</div>
+        </div>
+        <div class="cell" style="flex:2">
+          <div class="cell-label">Valor do Documento</div>
+          <div class="cell-value" style="font-size:16px;color:#000">R$ ${valor}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="instrucoes">
+      <div class="instrucoes-label">Instruções (texto de responsabilidade do beneficiário)</div>
+      <div style="font-size:12px;margin-top:4px">${form.instrucoes||'Pagar até a data de vencimento.'}</div>
+    </div>
+
+    <div class="barcode">
+      <div class="instrucoes-label" style="margin-bottom:6px">Linha Digitável</div>
+      <div class="barcode-text">${form.linha_digitavel||'00000.00000 00000.000000 00000.000000 0 00000000000000'}</div>
+      ${form.codigo_barras ? `<div style="margin-top:8px;font-family:monospace;font-size:8px;letter-spacing:4px;overflow:hidden">${form.codigo_barras}</div>` : ''}
+    </div>
+
+    <div class="footer">Documento gerado pelo SA Pride ERP — ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}</div>
+    </body></html>`)
+    w.document.close()
+    setTimeout(() => setImprimindo(false), 500)
+  }
+
+  return (
+    <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:'fixed',inset:0,background:'#00000090',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1200,padding:16}}>
+      <div style={{background:'#1A1D2E',border:'1px solid #1E2235',borderRadius:16,padding:'24px',width:500,maxWidth:'100%',maxHeight:'92vh',overflowY:'auto'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <div>
+            <div style={{fontSize:16,fontWeight:700,color:'#F1F5F9'}}>Detalhes do Boleto</div>
+            <div style={{fontSize:12,color:'#475569',marginTop:2}}>{boleto.descricao}</div>
+          </div>
+          <button onClick={onClose} style={{background:'none',border:'none',color:'#475569',fontSize:22,cursor:'pointer'}}>×</button>
+        </div>
+
+        {/* Info resumida */}
+        <div style={{display:'flex',gap:10,marginBottom:16,padding:'10px 14px',background:'#0F1117',borderRadius:8}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,color:'#475569'}}>Valor</div>
+            <div style={{fontSize:16,fontWeight:700,color:'#F1F5F9'}}>{Number(boleto.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,color:'#475569'}}>Vencimento</div>
+            <div style={{fontSize:14,fontWeight:700,color:'#EF4444'}}>{boleto.vencimento?new Date(boleto.vencimento+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</div>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,color:'#475569'}}>Fornecedor</div>
+            <div style={{fontSize:12,fontWeight:600,color:'#94A3B8'}}>{boleto.fornecedor||'—'}</div>
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:12,marginBottom:12}}>
+          <div style={{flex:2}}>
+            <label style={lbl}>Favorecido (Beneficiário)</label>
+            <input style={inp} value={form.favorecido} onChange={e=>setF('favorecido',e.target.value)} placeholder="Nome do favorecido" />
+          </div>
+          <div style={{flex:1}}>
+            <label style={lbl}>CNPJ/CPF</label>
+            <input style={inp} value={form.cnpj_favorecido} onChange={e=>setF('cnpj_favorecido',e.target.value)} placeholder="00.000.000/0001-00" />
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:12,marginBottom:12}}>
+          <div style={{flex:2}}>
+            <label style={lbl}>Banco</label>
+            <select style={inp} value={form.banco} onChange={e=>setF('banco',e.target.value)}>
+              <option value="">Selecione...</option>
+              {BANCOS.map(b=><option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+          <div style={{flex:1}}>
+            <label style={lbl}>Agência</label>
+            <input style={inp} value={form.agencia} onChange={e=>setF('agencia',e.target.value)} placeholder="0000" />
+          </div>
+          <div style={{flex:1}}>
+            <label style={lbl}>Conta</label>
+            <input style={inp} value={form.conta} onChange={e=>setF('conta',e.target.value)} placeholder="00000-0" />
+          </div>
+        </div>
+
+        <label style={lbl}>Linha Digitável *</label>
+        <input style={{...inp,marginBottom:12,fontFamily:'monospace',letterSpacing:1}} value={form.linha_digitavel} onChange={e=>setF('linha_digitavel',e.target.value)} placeholder="00000.00000 00000.000000 00000.000000 0 00000000000000" />
+
+        <label style={lbl}>Código de Barras</label>
+        <input style={{...inp,marginBottom:12,fontFamily:'monospace',fontSize:11}} value={form.codigo_barras} onChange={e=>setF('codigo_barras',e.target.value)} placeholder="00000000000000000000000000000000000000000000" />
+
+        <div style={{display:'flex',gap:12,marginBottom:12}}>
+          <div style={{flex:1}}>
+            <label style={lbl}>Nosso Número</label>
+            <input style={inp} value={form.nosso_numero} onChange={e=>setF('nosso_numero',e.target.value)} placeholder="00000000" />
+          </div>
+        </div>
+
+        <label style={lbl}>Instruções de pagamento</label>
+        <textarea style={{...inp,resize:'vertical',minHeight:60,marginBottom:20}} value={form.instrucoes} onChange={e=>setF('instrucoes',e.target.value)} placeholder="Ex: Não receber após o vencimento. Multa de 2% após vencimento." />
+
+        <div style={{display:'flex',justifyContent:'space-between',gap:8}}>
+          <button onClick={onClose} style={{padding:'8px 16px',borderRadius:7,border:'1px solid #1E2235',background:'transparent',color:'#64748B',fontWeight:600,fontSize:13,cursor:'pointer'}}>Cancelar</button>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={()=>onSave(form)} style={{padding:'8px 16px',borderRadius:7,border:'1px solid #1E3A5F',background:'transparent',color:'#93C5FD',fontWeight:600,fontSize:13,cursor:'pointer'}}>💾 Salvar</button>
+            <button onClick={emitirBoleto} disabled={imprimindo} style={{padding:'8px 18px',borderRadius:7,border:'none',background:'linear-gradient(135deg,#3B82F6,#6366F1)',color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>
+              🖨️ Emitir boleto
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Boletos({ obra }) {
   const [boletos,  setBoletos]  = useState([])
   const [loading,  setLoading]  = useState(true)
   const [modal,    setModal]    = useState(null)
+  const [detalhe,  setDetalhe]  = useState(null)
   const [toast,    setToast]    = useState(null)
-  const [filtro,   setFiltro]   = useState('todos') // todos | pendente | vencido | pago | proximos
+  const [filtro,   setFiltro]   = useState('todos')
   const [form, setForm] = useState({ descricao:'', valor:'', emissao:'', parcelas:'1', condicao:'30', fornecedor:'', observacoes:'' })
 
   useEffect(() => { fetchBoletos() }, [obra.id])
@@ -349,6 +561,23 @@ function Boletos({ obra }) {
     if (!confirm('Excluir boleto?')) return
     await supabase.from('boletos').delete().eq('id',id)
     setBoletos(bs=>bs.filter(b=>b.id!==id))
+  }
+
+  async function saveDetalhe(id, form) {
+    await supabase.from('boletos').update({
+      banco:           form.banco,
+      agencia:         form.agencia,
+      conta:           form.conta,
+      favorecido:      form.favorecido,
+      cnpj_favorecido: form.cnpj_favorecido,
+      linha_digitavel: form.linha_digitavel,
+      codigo_barras:   form.codigo_barras,
+      nosso_numero:    form.nosso_numero,
+      instrucoes:      form.instrucoes,
+    }).eq('id', id)
+    setBoletos(bs => bs.map(b => b.id===id ? {...b,...form} : b))
+    setDetalhe(null)
+    showToast('Boleto salvo!')
   }
 
   // Calcula status real
@@ -500,6 +729,11 @@ function Boletos({ obra }) {
 
                   <div style={{display:'flex',gap:6,flexShrink:0}}>
                     <button
+                      onClick={()=>setDetalhe(b)}
+                      title="Preencher e emitir boleto"
+                      style={{padding:'6px 10px',borderRadius:6,border:'1px solid #1E2235',background:'transparent',color:'#64748B',fontSize:11,cursor:'pointer',fontWeight:600}}
+                    >📋 Detalhes</button>
+                    <button
                       onClick={()=>togglePago(b)}
                       title={isPago?'Desmarcar pagamento':'Confirmar pagamento'}
                       style={{padding:'6px 10px',borderRadius:6,border:`1px solid ${isPago?'#064E3B':'#1E3A5F'}`,background:'transparent',color:isPago?'#6EE7B7':'#93C5FD',fontSize:12,cursor:'pointer',fontWeight:600}}
@@ -570,6 +804,14 @@ function Boletos({ obra }) {
         </div>
       )}
       {toast && <div style={{position:'fixed',bottom:24,right:24,background:'#064E3B',border:'1px solid #065F46',color:'#6EE7B7',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:600,zIndex:2000}}>{toast}</div>}
+
+      {detalhe && (
+        <BoletoDetalheModal
+          boleto={detalhe}
+          onSave={form => saveDetalhe(detalhe.id, form)}
+          onClose={() => setDetalhe(null)}
+        />
+      )}
     </div>
   )
 }
@@ -1347,6 +1589,41 @@ function Contratos({ obra }) {
 
   function getFornecedor(id) { return fornecedores.find(f=>f.id===id) }
 
+  async function gerarBoletos(c, e) {
+    e.stopPropagation()
+    if (!c.data_inicio) { showToast('⚠️ Defina a data de início do contrato antes.'); return }
+    if (!c.parcelas || c.parcelas <= 1) { showToast('⚠️ Contrato com apenas 1 parcela — adicione manualmente na aba Boletos.'); return }
+
+    // Verifica duplicidade — busca boletos já existentes com mesma descrição
+    const { data: existing } = await supabase.from('boletos')
+      .select('id, descricao').eq('obra_id', obra.id)
+      .ilike('descricao', `${c.descricao}%`)
+
+    if (existing?.length > 0) {
+      const confirma = confirm(`Já existem ${existing.length} boleto(s) com nome similar a este contrato.\n\nDeseja gerar mesmo assim? Isso pode criar duplicatas.`)
+      if (!confirma) return
+    }
+
+    const forn = getFornecedor(c.fornecedor_id)
+    const valorParcela = Number(c.valor_total||0) / Number(c.parcelas||1)
+    const boletos = Array.from({length: Number(c.parcelas)}, (_, i) => {
+      const venc = new Date(c.data_inicio + 'T00:00:00')
+      venc.setMonth(venc.getMonth() + i + 1)
+      return {
+        obra_id:     obra.id,
+        descricao:   `${c.descricao} (${i+1}/${c.parcelas})`,
+        fornecedor:  forn?.nome || null,
+        valor:       valorParcela,
+        emissao:     c.data_inicio,
+        vencimento:  venc.toISOString().slice(0,10),
+        status:      'pendente',
+        observacoes: `Gerado do contrato: ${c.descricao}`,
+      }
+    })
+    await supabase.from('boletos').insert(boletos)
+    showToast(`✅ ${boletos.length} boleto${boletos.length>1?'s':''} gerado${boletos.length>1?'s':''}!`)
+  }
+
   async function handleSave(form) {
     if (form._delete) {
       if (!confirm('Excluir este contrato?')) return
@@ -1452,28 +1729,41 @@ function Contratos({ obra }) {
         const valorRetencao = retencaoPct > 0 ? Number(c.valor_total||0)*retencaoPct/100 : 0
 
         return (
-          <div key={c.id} onClick={()=>setModal(c)} style={{...card,marginBottom:10,cursor:'pointer',transition:'border-color 0.15s'}}
+          <div key={c.id} style={{...card,marginBottom:10,transition:'border-color 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.borderColor='#334155'}
             onMouseLeave={e=>e.currentTarget.style.borderColor='#1E2235'}
           >
             <div style={{display:'flex',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
-              <div style={{flex:1,minWidth:0}}>
+              <div style={{flex:1,minWidth:0,cursor:'pointer'}} onClick={()=>setModal(c)}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
                   <span style={{fontSize:14,fontWeight:700,color:'#F1F5F9'}}>{c.descricao}</span>
                   <span style={{padding:'2px 8px',borderRadius:12,fontSize:10,fontWeight:700,background:meta.bg,color:meta.color}}>{meta.label}</span>
+                  {c.tipo_documento==='nota_fiscal' && <span style={{padding:'2px 8px',borderRadius:12,fontSize:10,background:'#1E3A5F',color:'#93C5FD'}}>NF</span>}
                 </div>
                 {forn && <div style={{fontSize:12,color:'#64748B',marginBottom:4}}>🏢 {forn.nome}{forn.categoria?` · ${forn.categoria}`:''}</div>}
-                {c.objeto && <div style={{fontSize:11,color:'#475569',marginBottom:6,lineHeight:1.4}}>{c.objeto}</div>}
+                {c.objeto && <div style={{fontSize:11,color:'#475569',marginBottom:6,lineHeight:1.4}}>{c.objeto.slice(0,120)}{c.objeto.length>120?'...':''}</div>}
                 <div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:11,color:'#475569'}}>
                   {c.data_inicio && <span>📅 Início: {new Date(c.data_inicio+'T00:00:00').toLocaleDateString('pt-BR')}</span>}
                   {c.data_fim    && <span>🏁 Término: {new Date(c.data_fim+'T00:00:00').toLocaleDateString('pt-BR')}</span>}
                   {c.reajuste && c.reajuste!=='Nenhum' && <span>📈 Reajuste: {c.reajuste}</span>}
+                  {c.arquivo_url && <a href={c.arquivo_url} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{color:'#3B82F6',textDecoration:'none'}}>📎 PDF</a>}
                 </div>
               </div>
-              <div style={{textAlign:'right',flexShrink:0}}>
-                <div style={{fontSize:18,fontWeight:700,color:'#F1F5F9',marginBottom:4}}>{fmtBRL(c.valor_total)}</div>
-                {valorParcela && <div style={{fontSize:11,color:'#64748B'}}>{c.parcelas}x de {fmtBRL(valorParcela)}</div>}
-                {valorRetencao > 0 && <div style={{fontSize:11,color:'#F59E0B',marginTop:2}}>✂️ Ret. {fmtBRL(valorRetencao)}</div>}
+              <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:8,flexShrink:0}}>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:18,fontWeight:700,color:'#F1F5F9',marginBottom:2}}>{fmtBRL(c.valor_total)}</div>
+                  {valorParcela && <div style={{fontSize:11,color:'#64748B'}}>{c.parcelas}x de {fmtBRL(valorParcela)}</div>}
+                  {valorRetencao > 0 && <div style={{fontSize:11,color:'#F59E0B',marginTop:2}}>✂️ Ret. {fmtBRL(valorRetencao)}</div>}
+                </div>
+                {c.parcelas > 1 && (
+                  <button
+                    onClick={e => gerarBoletos(c, e)}
+                    style={{padding:'5px 12px',borderRadius:6,border:'1px solid #1E3A5F',background:'transparent',color:'#93C5FD',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}
+                    title="Gerar boletos para este contrato"
+                  >
+                    📄 Gerar boletos
+                  </button>
+                )}
               </div>
             </div>
           </div>
