@@ -35,7 +35,7 @@ const MENU = [
     label: 'Financeiro',
     children: [
       { id: 'financeiro',  icon: '💰', label: 'Orçamento & Medições', modulo: 'financeiro'  },
-      { id: 'boletos',     icon: '📄', label: 'Boletos',              modulo: 'boletos',    soon: true },
+      { id: 'boletos',     icon: '📄', label: 'Boletos',              modulo: 'boletos'     },
       { id: 'relatorios',  icon: '📊', label: 'Relatórios',           modulo: 'relatorios', soon: true },
     ],
   },

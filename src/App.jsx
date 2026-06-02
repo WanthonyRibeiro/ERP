@@ -49,6 +49,7 @@ export default function App() {
         {module === 'compras'       && <Compras       session={session} permissoes={permissoes} />}
         {module === 'fornecedores'  && <Fornecedores  session={session} />}
         {module === 'financeiro'    && <Financeiro    session={session} permissoes={permissoes} />}
+        {module === 'boletos'       && <Financeiro    session={session} permissoes={permissoes} abaInicial="boletos" />}
         {module === 'configuracoes' && <Configuracoes session={session} />}
         <FeedbackButton session={session} />
       </div>
