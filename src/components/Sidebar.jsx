@@ -15,7 +15,7 @@ const MENU = [
     children: [
       { id: 'cronograma', icon: '📅', label: 'Cronograma', modulo: 'cronograma' },
       { id: 'medicoes',   icon: '📏', label: 'Medições',   modulo: 'medicoes'   },
-      { id: 'contratos',  icon: '📃', label: 'Contratos',  modulo: 'contratos', soon: true },
+      { id: 'contratos',  icon: '📃', label: 'Contratos',  modulo: 'contratos' },
       { id: 'rdo',        icon: '📋', label: 'RDO',        modulo: 'rdo',       soon: true },
     ],
   },

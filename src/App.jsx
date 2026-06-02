@@ -44,7 +44,8 @@ export default function App() {
       <div className="sa-main-content" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {module === 'obras'         && <Obras         session={session} permissoes={permissoes} />}
         {module === 'cronograma'    && <Cronograma    session={session} permissoes={permissoes} />}
-        {module === 'medicoes'      && <Financeiro    session={session} permissoes={permissoes} abaInicial="medicoes" />}
+        {module === 'medicoes'      && <Financeiro    session={session} permissoes={permissoes} abaInicial="medicoes"  />}
+        {module === 'contratos'     && <Financeiro    session={session} permissoes={permissoes} abaInicial="contratos" />}
         {module === 'compras'       && <Compras       session={session} permissoes={permissoes} />}
         {module === 'fornecedores'  && <Fornecedores  session={session} />}
         {module === 'financeiro'    && <Financeiro    session={session} permissoes={permissoes} />}
