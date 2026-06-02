@@ -232,20 +232,14 @@ function CurvaS({ obra }) {
   return (
     <div>
       <div style={{fontSize:13,color:'#475569',marginBottom:16}}>Avanço financeiro acumulado — previsto vs realizado</div>
-      <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={data} margin={{top:5,right:20,left:0,bottom:5}}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1E2235" />
-          <XAxis dataKey="mes" tick={{fontSize:10,fill:'#475569'}} />
-          <YAxis tickFormatter={v=>`${v.toFixed(0)}%`} tick={{fontSize:10,fill:'#475569'}} domain={[0,100]} />
-          <Tooltip
-            contentStyle={{background:'#1A1D2E',border:'1px solid #334155',borderRadius:8,fontSize:12}}
-            formatter={(v,name)=>[`${v.toFixed(1)}%`, name]}
-          />
-          <Legend wrapperStyle={{fontSize:12,color:'#94A3B8'}} />
-          <Line type="monotone" dataKey="previsto" name="Previsto" stroke="#3B82F6" strokeWidth={2} dot={false} strokeDasharray="5 3" />
-          <Line type="monotone" dataKey="realizado" name="Realizado" stroke="#10B981" strokeWidth={2} dot={{r:3}} />
-        </LineChart>
-      </ResponsiveContainer>
+      <SvgLineChart data={data} height={280} lines={[
+        {key:'previsto',  color:'#3B82F6', dashed:true},
+        {key:'realizado', color:'#10B981', dashed:false},
+      ]} />
+      <div style={{display:'flex',gap:16,justifyContent:'center',marginTop:8,fontSize:12,color:'#64748B'}}>
+        <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:20,height:2,background:'#3B82F6',display:'inline-block',borderRadius:2}}/>Previsto</span>
+        <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:20,height:2,background:'#10B981',display:'inline-block',borderRadius:2}}/>Realizado</span>
+      </div>
     </div>
   )
 }
@@ -285,30 +279,18 @@ function AvancoMensal({ obra }) {
     <div style={{display:'flex',flexDirection:'column',gap:20}}>
       <div>
         <div style={{fontSize:13,fontWeight:600,color:'#94A3B8',marginBottom:10}}>Avanço Financeiro por Mês (R$)</div>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={data} margin={{top:5,right:20,left:0,bottom:5}}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1E2235" />
-            <XAxis dataKey="mes" tick={{fontSize:10,fill:'#475569'}} />
-            <YAxis tickFormatter={v=>fmtBRL(v).replace('R$','')} tick={{fontSize:10,fill:'#475569'}} />
-            <Tooltip contentStyle={{background:'#1A1D2E',border:'1px solid #334155',borderRadius:8,fontSize:12}} formatter={v=>fmtBRL(v)} />
-            <Legend wrapperStyle={{fontSize:12,color:'#94A3B8'}} />
-            <Bar dataKey="previsto"  name="Previsto"  fill="#3B82F6" radius={[4,4,0,0]} />
-            <Bar dataKey="realizado" name="Realizado" fill="#10B981" radius={[4,4,0,0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <SvgBarChart data={data} height={200} bars={[
+          {key:'previsto',  color:'#3B82F6'},
+          {key:'realizado', color:'#10B981'},
+        ]} formatY={v=>v>999?`${(v/1000).toFixed(0)}k`:v.toFixed(0)} />
+        <div style={{display:'flex',gap:16,justifyContent:'center',marginTop:6,fontSize:12,color:'#64748B'}}>
+          <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:12,height:12,background:'#3B82F6',display:'inline-block',borderRadius:2}}/>Previsto</span>
+          <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:12,height:12,background:'#10B981',display:'inline-block',borderRadius:2}}/>Realizado</span>
+        </div>
       </div>
       <div>
         <div style={{fontSize:13,fontWeight:600,color:'#94A3B8',marginBottom:10}}>Avanço Físico por Mês (%)</div>
-        <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={data} margin={{top:5,right:20,left:0,bottom:5}}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1E2235" />
-            <XAxis dataKey="mes" tick={{fontSize:10,fill:'#475569'}} />
-            <YAxis tickFormatter={v=>`${v.toFixed(0)}%`} domain={[0,100]} tick={{fontSize:10,fill:'#475569'}} />
-            <Tooltip contentStyle={{background:'#1A1D2E',border:'1px solid #334155',borderRadius:8,fontSize:12}} formatter={v=>`${v.toFixed(1)}%`} />
-            <Bar dataKey="fisico" name="Avanço Físico %" fill="#8B5CF6" radius={[4,4,0,0]} />
-            <ReferenceLine y={100} stroke="#334155" strokeDasharray="4 2" />
-          </BarChart>
-        </ResponsiveContainer>
+        <SvgBarChart data={data} height={180} bars={[{key:'fisico',color:'#8B5CF6'}]} formatY={v=>`${v.toFixed(0)}%`} />
       </div>
     </div>
   )
@@ -316,11 +298,12 @@ function AvancoMensal({ obra }) {
 
 // ── BOLETOS ───────────────────────────────────────────────────────────────
 function Boletos({ obra }) {
-  const [boletos, setBoletos] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [modal, setModal]     = useState(null)
-  const [toast, setToast]     = useState(null)
-  const [form, setForm]       = useState({ descricao:'', valor:'', emissao:'', parcelas:'1', condicao:'30', fornecedor:'', observacoes:'' })
+  const [boletos,  setBoletos]  = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [modal,    setModal]    = useState(null)
+  const [toast,    setToast]    = useState(null)
+  const [filtro,   setFiltro]   = useState('todos') // todos | pendente | vencido | pago | proximos
+  const [form, setForm] = useState({ descricao:'', valor:'', emissao:'', parcelas:'1', condicao:'30', fornecedor:'', observacoes:'' })
 
   useEffect(() => { fetchBoletos() }, [obra.id])
 
@@ -345,12 +328,8 @@ function Boletos({ obra }) {
     const toInsert = vencimentos.map((v,i)=>({
       obra_id: obra.id,
       descricao: vencimentos.length > 1 ? `${form.descricao} (${i+1}/${vencimentos.length})` : form.descricao,
-      valor: valorParcela,
-      emissao: form.emissao,
-      vencimento: v,
-      status: 'pendente',
-      fornecedor: form.fornecedor||null,
-      observacoes: form.observacoes||null,
+      valor: valorParcela, emissao: form.emissao, vencimento: v,
+      status: 'pendente', fornecedor: form.fornecedor||null, observacoes: form.observacoes||null,
     }))
     await supabase.from('boletos').insert(toInsert)
     setModal(null)
@@ -361,8 +340,9 @@ function Boletos({ obra }) {
 
   async function togglePago(b) {
     const novoStatus = b.status === 'pago' ? 'pendente' : 'pago'
-    await supabase.from('boletos').update({status:novoStatus}).eq('id',b.id)
+    await supabase.from('boletos').update({status:novoStatus, data_pagamento: novoStatus==='pago' ? today() : null}).eq('id',b.id)
     setBoletos(bs=>bs.map(bb=>bb.id===b.id?{...bb,status:novoStatus}:bb))
+    showToast(novoStatus==='pago' ? '✅ Boleto marcado como pago!' : 'Boleto desmarcado.')
   }
 
   async function deleteBoleto(id) {
@@ -371,71 +351,164 @@ function Boletos({ obra }) {
     setBoletos(bs=>bs.filter(b=>b.id!==id))
   }
 
-  // Atualiza status de vencidos automaticamente
+  // Calcula status real
   const boletosComStatus = boletos.map(b => {
     if (b.status==='pago') return b
     const dt = new Date(b.vencimento+'T00:00:00')
     const t = new Date(); t.setHours(0,0,0,0)
-    if (dt < t) return {...b, status:'vencido'}
-    return b
+    if (dt < t) return {...b, _status:'vencido'}
+    const diff = Math.round((dt-t)/86400000)
+    if (diff <= 7) return {...b, _status:'urgente', _diff: diff}
+    if (diff <= 30) return {...b, _status:'proximo', _diff: diff}
+    return {...b, _status:'ok', _diff: diff}
   })
 
-  const totalPendente = boletosComStatus.filter(b=>b.status!=='pago').reduce((a,b)=>a+Number(b.valor||0),0)
-  const totalPago     = boletosComStatus.filter(b=>b.status==='pago').reduce((a,b)=>a+Number(b.valor||0),0)
-  const vencendo7d    = boletosComStatus.filter(b=>{
-    if (b.status==='pago') return false
-    const diff = Math.round((new Date(b.vencimento+'T00:00:00')-new Date())/86400000)
-    return diff >= 0 && diff <= 7
-  }).length
+  // Stats
+  const vencidos  = boletosComStatus.filter(b=>b._status==='vencido').length
+  const urgentes  = boletosComStatus.filter(b=>b._status==='urgente').length
+  const proximos  = boletosComStatus.filter(b=>b._status==='proximo').length
+  const pagos     = boletosComStatus.filter(b=>b.status==='pago').length
+  const totalPend = boletosComStatus.filter(b=>b.status!=='pago').reduce((a,b)=>a+Number(b.valor||0),0)
+  const totalPago = boletosComStatus.filter(b=>b.status==='pago').reduce((a,b)=>a+Number(b.valor||0),0)
+  const totalVenc = boletosComStatus.filter(b=>b._status==='vencido').reduce((a,b)=>a+Number(b.valor||0),0)
+
+  // Filtro
+  const filtrados = boletosComStatus.filter(b => {
+    if (filtro==='todos')    return true
+    if (filtro==='pago')     return b.status==='pago'
+    if (filtro==='vencido')  return b._status==='vencido'
+    if (filtro==='proximos') return b._status==='urgente'||b._status==='proximo'
+    if (filtro==='pendente') return b.status!=='pago'&&b._status!=='vencido'
+    return true
+  })
+
+  // Agrupa por mês de vencimento
+  const grupos = {}
+  filtrados.forEach(b => {
+    const mes = b.vencimento?.slice(0,7) ?? 'sem_data'
+    if (!grupos[mes]) grupos[mes] = []
+    grupos[mes].push(b)
+  })
 
   return (
     <div>
-      {/* Resumo */}
-      <div style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap'}}>
+      {/* Alertas de vencimento */}
+      {(vencidos > 0 || urgentes > 0) && (
+        <div style={{background:'#450A0A',border:'1px solid #991B1B',borderRadius:10,padding:'12px 16px',marginBottom:16,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <span style={{fontSize:20}}>🚨</span>
+          <div>
+            {vencidos > 0 && <div style={{fontSize:13,fontWeight:700,color:'#FCA5A5'}}>{vencidos} boleto{vencidos>1?'s':''} VENCIDO{vencidos>1?'S':''} — {fmtBRL(totalVenc)}</div>}
+            {urgentes > 0 && <div style={{fontSize:12,color:'#FCA5A5',opacity:0.8}}>{urgentes} vencendo nos próximos 7 dias</div>}
+          </div>
+        </div>
+      )}
+
+      {/* Stats */}
+      <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
         {[
-          {label:'A pagar',     value:fmtBRL(totalPendente), color:'#F59E0B', icon:'📋'},
-          {label:'Pago',        value:fmtBRL(totalPago),     color:'#10B981', icon:'✅'},
-          {label:'Vencendo em 7d', value:vencendo7d,         color:'#EF4444', icon:'⚠️'},
+          {label:'A pagar',    value:fmtBRL(totalPend), color:'#F59E0B', icon:'📋'},
+          {label:'Pago',       value:fmtBRL(totalPago), color:'#10B981', icon:'✅'},
+          {label:'Vencidos',   value:vencidos,           color:'#EF4444', icon:'⚠️'},
+          {label:'Próx. 30d',  value:proximos+urgentes,  color:'#F59E0B', icon:'⏰'},
+          {label:'Pagos (qtd)',value:pagos,              color:'#6366F1', icon:'🧾'},
         ].map(s=>(
-          <div key={s.label} style={{flex:1,minWidth:130,...card}}>
-            <div style={{fontSize:18,marginBottom:6}}>{s.icon}</div>
-            <div style={{fontSize:11,color:'#475569',marginBottom:2}}>{s.label}</div>
-            <div style={{fontSize:17,fontWeight:700,color:s.color}}>{s.value}</div>
+          <div key={s.label} style={{flex:1,minWidth:100,...card}}>
+            <div style={{fontSize:16,marginBottom:4}}>{s.icon}</div>
+            <div style={{fontSize:10,color:'#475569',marginBottom:2}}>{s.label}</div>
+            <div style={{fontSize:15,fontWeight:700,color:s.color}}>{s.value}</div>
           </div>
         ))}
       </div>
 
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-        <div style={{fontSize:14,fontWeight:600,color:'#F1F5F9'}}>Boletos</div>
+      {/* Filtros + botão novo */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:8}}>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+          {[
+            {id:'todos',    label:'Todos', count: boletosComStatus.length},
+            {id:'vencido',  label:'⚠️ Vencidos', count: vencidos, color:'#EF4444'},
+            {id:'proximos', label:'⏰ Próximos', count: proximos+urgentes, color:'#F59E0B'},
+            {id:'pendente', label:'📋 Pendentes', count: boletosComStatus.filter(b=>b.status!=='pago'&&b._status!=='vencido').length},
+            {id:'pago',     label:'✅ Pagos', count: pagos, color:'#10B981'},
+          ].map(f=>(
+            <button key={f.id} onClick={()=>setFiltro(f.id)} style={{
+              padding:'5px 12px',borderRadius:20,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,
+              background:filtro===f.id?(f.color?f.color+'22':'#1E3A5F'):'transparent',
+              color:filtro===f.id?(f.color??'#93C5FD'):'#475569',
+              outline: filtro===f.id?`1.5px solid ${f.color??'#3B82F6'}`:'none',
+            }}>{f.label} {f.count>0&&<span style={{opacity:0.7}}>({f.count})</span>}</button>
+          ))}
+        </div>
         <button onClick={()=>setModal(true)} style={{padding:'7px 14px',borderRadius:7,border:'none',background:'linear-gradient(135deg,#3B82F6,#6366F1)',color:'#fff',fontWeight:700,fontSize:12,cursor:'pointer'}}>+ Novo boleto</button>
       </div>
 
+      {/* Lista agrupada por mês */}
       {loading ? <div style={{color:'#334155',fontSize:13}}>Carregando...</div>
-      : boletosComStatus.length === 0 ? (
-        <div style={{textAlign:'center',padding:'30px 0',color:'#334155',fontSize:13}}>Nenhum boleto cadastrado.</div>
-      ) : boletosComStatus.map(b => {
-        const meta = STATUS_BOLETO[b.status] ?? STATUS_BOLETO.pendente
-        const alerta = b.status !== 'pago' ? getVencimentoBoleto(b.vencimento) : null
+      : filtrados.length === 0 ? (
+        <div style={{textAlign:'center',padding:'40px 0',color:'#334155',fontSize:13}}>
+          {filtro==='todos' ? 'Nenhum boleto cadastrado.' : 'Nenhum boleto neste filtro.'}
+        </div>
+      ) : Object.entries(grupos).sort().map(([mes, items]) => {
+        const totalMes = items.reduce((a,b)=>a+Number(b.valor||0),0)
+        const nomeMes = mes==='sem_data' ? 'Sem data' : new Date(mes+'-01T00:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})
         return (
-          <div key={b.id} style={{...card,marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:600,color:'#F1F5F9',marginBottom:2}}>{b.descricao}</div>
-              <div style={{display:'flex',gap:10,flexWrap:'wrap',fontSize:11,color:'#64748B'}}>
-                {b.fornecedor && <span>🏢 {b.fornecedor}</span>}
-                <span>📅 Vence: {new Date(b.vencimento+'T00:00:00').toLocaleDateString('pt-BR')}</span>
-                {alerta && <span style={{color:alerta.color,fontWeight:600}}>{alerta.label}</span>}
+          <div key={mes} style={{marginBottom:20}}>
+            {/* Header do mês */}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,padding:'6px 0',borderBottom:'1px solid #1E2235'}}>
+              <div style={{fontSize:12,fontWeight:700,color:'#64748B',textTransform:'uppercase',letterSpacing:0.5}}>
+                📅 {nomeMes}
               </div>
+              <div style={{fontSize:12,fontWeight:600,color:'#94A3B8'}}>{fmtBRL(totalMes)}</div>
             </div>
-            <div style={{textAlign:'right',flexShrink:0}}>
-              <div style={{fontSize:15,fontWeight:700,color:'#F1F5F9',marginBottom:4}}>{fmtBRL(b.valor)}</div>
-              <span style={{padding:'2px 8px',borderRadius:12,fontSize:10,fontWeight:700,background:meta.bg,color:meta.color}}>{meta.label}</span>
-            </div>
-            <div style={{display:'flex',gap:6,flexShrink:0}}>
-              <button onClick={()=>togglePago(b)} title={b.status==='pago'?'Desmarcar':'Marcar como pago'} style={{padding:'5px 8px',borderRadius:6,border:`1px solid ${b.status==='pago'?'#064E3B':'#1E3A5F'}`,background:'transparent',color:b.status==='pago'?'#6EE7B7':'#93C5FD',fontSize:12,cursor:'pointer'}}>
-                {b.status==='pago'?'✓':'Pagar'}
-              </button>
-              <button onClick={()=>deleteBoleto(b.id)} style={{padding:'5px 8px',borderRadius:6,border:'1px solid #450A0A',background:'transparent',color:'#FCA5A5',fontSize:12,cursor:'pointer'}}>×</button>
-            </div>
+
+            {items.map(b => {
+              const isPago   = b.status==='pago'
+              const isVenc   = b._status==='vencido'
+              const isUrgent = b._status==='urgente'
+              const isProx   = b._status==='proximo'
+
+              const borderColor = isPago ? '#064E3B' : isVenc ? '#991B1B' : isUrgent ? '#92400E' : '#1E2235'
+              const badgeColor  = isPago ? '#10B981' : isVenc ? '#EF4444' : isUrgent ? '#F59E0B' : isProx ? '#F59E0B' : '#64748B'
+              const badgeBg     = isPago ? '#064E3B' : isVenc ? '#450A0A' : isUrgent||isProx ? '#451A03' : '#1E2235'
+              const badgeLabel  = isPago ? `✓ Pago` : isVenc ? `Vencido` : `${b._diff}d`
+
+              return (
+                <div key={b.id} style={{
+                  background: isPago ? '#0A1A10' : isVenc ? '#1A0808' : '#1A1D2E',
+                  border:`1px solid ${borderColor}`,
+                  borderRadius:10, padding:'12px 14px', marginBottom:6,
+                  display:'flex', alignItems:'center', gap:12, transition:'all 0.15s',
+                }}>
+                  {/* Indicador lateral */}
+                  <div style={{width:4,height:40,borderRadius:2,background:badgeColor,flexShrink:0}} />
+
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color: isPago?'#64748B':'#F1F5F9',marginBottom:3,textDecoration:isPago?'line-through':'none'}}>
+                      {b.descricao}
+                    </div>
+                    <div style={{display:'flex',gap:10,flexWrap:'wrap',fontSize:11,color:'#475569'}}>
+                      {b.fornecedor && <span>🏢 {b.fornecedor}</span>}
+                      <span>📅 {new Date(b.vencimento+'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                      {b.data_pagamento && <span>✓ Pago em {new Date(b.data_pagamento+'T00:00:00').toLocaleDateString('pt-BR')}</span>}
+                      {b.observacoes && <span style={{maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>💬 {b.observacoes}</span>}
+                    </div>
+                  </div>
+
+                  <div style={{textAlign:'right',flexShrink:0}}>
+                    <div style={{fontSize:15,fontWeight:700,color:isPago?'#64748B':'#F1F5F9',marginBottom:4}}>{fmtBRL(b.valor)}</div>
+                    <span style={{padding:'2px 8px',borderRadius:12,fontSize:10,fontWeight:700,background:badgeBg,color:badgeColor}}>{badgeLabel}</span>
+                  </div>
+
+                  <div style={{display:'flex',gap:6,flexShrink:0}}>
+                    <button
+                      onClick={()=>togglePago(b)}
+                      title={isPago?'Desmarcar pagamento':'Confirmar pagamento'}
+                      style={{padding:'6px 10px',borderRadius:6,border:`1px solid ${isPago?'#064E3B':'#1E3A5F'}`,background:'transparent',color:isPago?'#6EE7B7':'#93C5FD',fontSize:12,cursor:'pointer',fontWeight:600}}
+                    >{isPago?'✓ Pago':'Pagar'}</button>
+                    <button onClick={()=>deleteBoleto(b.id)} style={{padding:'6px 8px',borderRadius:6,border:'1px solid #1E2235',background:'transparent',color:'#475569',fontSize:14,cursor:'pointer'}}>×</button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )
       })}
@@ -466,11 +539,11 @@ function Boletos({ obra }) {
               <div style={{flex:1}}>
                 <label style={lbl}>Condição de pagamento</label>
                 <select style={inp} value={form.condicao} onChange={e=>setForm(f=>({...f,condicao:e.target.value}))}>
+                  <option value="7">7 dias</option>
+                  <option value="15">15 dias</option>
                   <option value="30">30 dias</option>
                   <option value="60">60 dias</option>
                   <option value="90">90 dias</option>
-                  <option value="15">15 dias</option>
-                  <option value="7">7 dias</option>
                 </select>
               </div>
               <div style={{flex:1}}>
@@ -483,7 +556,7 @@ function Boletos({ obra }) {
             {form.emissao && (
               <div style={{background:'#0F1117',borderRadius:8,padding:'10px 12px',marginBottom:12,fontSize:12,color:'#64748B'}}>
                 {calcVencimentos(form.emissao,form.condicao,form.parcelas).map((v,i)=>(
-                  <div key={i}>Parcela {i+1}: {new Date(v+'T00:00:00').toLocaleDateString('pt-BR')} — {fmtBRL(Number(form.valor||0)/parseInt(form.parcelas||1))}</div>
+                  <div key={i} style={{marginBottom:2}}>Parcela {i+1}: <strong style={{color:'#94A3B8'}}>{new Date(v+'T00:00:00').toLocaleDateString('pt-BR')}</strong> — {fmtBRL(Number(form.valor||0)/parseInt(form.parcelas||1))}</div>
                 ))}
               </div>
             )}
@@ -496,7 +569,6 @@ function Boletos({ obra }) {
           </div>
         </div>
       )}
-
       {toast && <div style={{position:'fixed',bottom:24,right:24,background:'#064E3B',border:'1px solid #065F46',color:'#6EE7B7',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:600,zIndex:2000}}>{toast}</div>}
     </div>
   )
@@ -1300,13 +1372,41 @@ function Contratos({ obra }) {
       numero_documento: form.numero_documento || null,
       tipo_documento:   form.tipo_documento   || 'contrato',
     }
+
+    let contratoId = modal?.id
     if (modal?.id) {
       await supabase.from('contratos').update(payload).eq('id', modal.id)
     } else {
-      await supabase.from('contratos').insert(payload)
+      const { data: novo } = await supabase.from('contratos').insert(payload).select().single()
+      contratoId = novo?.id
+
+      // Gera boletos automaticamente se tiver parcelas e data de início
+      if (contratoId && Number(form.parcelas) > 1 && form.data_inicio) {
+        const valorParcela = Number(form.valor_total||0) / Number(form.parcelas||1)
+        const forn = fornecedores.find(f => f.id === form.fornecedor_id)
+        const boletos = Array.from({length: Number(form.parcelas)}, (_, i) => {
+          const venc = new Date(form.data_inicio + 'T00:00:00')
+          venc.setMonth(venc.getMonth() + i + 1)
+          return {
+            obra_id:    obra.id,
+            descricao:  `${form.descricao} (${i+1}/${form.parcelas})`,
+            fornecedor: forn?.nome || null,
+            valor:      valorParcela,
+            emissao:    form.data_inicio,
+            vencimento: venc.toISOString().slice(0,10),
+            status:     'pendente',
+            observacoes: `Contrato: ${form.descricao}`,
+          }
+        })
+        await supabase.from('boletos').insert(boletos)
+        showToast(`Contrato criado! ${form.parcelas} boleto${Number(form.parcelas)>1?'s':''} gerado${Number(form.parcelas)>1?'s':''} automaticamente.`)
+      } else {
+        showToast(modal?.id ? 'Contrato atualizado!' : 'Contrato criado!')
+      }
     }
+
+    if (modal?.id) showToast('Contrato atualizado!')
     setModal(null); await init()
-    showToast(modal?.id ? 'Contrato atualizado!' : 'Contrato criado!')
   }
 
   const totalContratos = contratos.reduce((a,c)=>a+Number(c.valor_total||0),0)
