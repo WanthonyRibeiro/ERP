@@ -1,9 +1,35 @@
 import { useRef, useEffect } from 'react'
 
+// Cores por prefixo MS Project e categorias manuais
 export const CATEGORY_COLORS = {
+  // MS Project prefixes
+  'ESTRUTURA DE CONCRETO': '#3B82F6',
+  'ALVENARIA':             '#F59E0B',
+  'HIDRÁULICA':            '#06B6D4',
+  'ELÉTRICA':              '#F59E0B',
+  'ESQUADRIAS':            '#8B5CF6',
+  'REVESTIMENTO':          '#10B981',
+  'PINTURA':               '#EC4899',
+  'COBERTURA':             '#EF4444',
+  'FUNDAÇÃO':              '#A16207',
+  'ACABAMENTO':            '#14B8A6',
+  'INFRAESTRUTURA':        '#6366F1',
+  'INSTALAÇÕES':           '#0EA5E9',
+  // Manuais
   Porcelanato: '#3B82F6', Instalações: '#8B5CF6', Vinílico: '#10B981',
-  Esquadrias:  '#F59E0B', Gesso:       '#6366F1', Pintura:  '#EC4899',
+  Esquadrias:  '#8B5CF6', Gesso:       '#6366F1', Pintura:  '#EC4899',
   Acabamento:  '#14B8A6', Geral:       '#64748B',
+}
+
+// Retorna cor para qualquer categoria, inclusive dinâmicas
+const PALETTE = ['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EF4444','#06B6D4','#EC4899','#6366F1','#14B8A6','#A16207','#0EA5E9','#84CC16']
+const _colorCache = {}
+export function getCategoryColor(cat) {
+  if (CATEGORY_COLORS[cat]) return CATEGORY_COLORS[cat]
+  if (_colorCache[cat]) return _colorCache[cat]
+  const idx = Object.keys(_colorCache).length % PALETTE.length
+  _colorCache[cat] = PALETTE[idx]
+  return _colorCache[cat]
 }
 
 const DAY_MS  = 86400000
@@ -27,7 +53,6 @@ export default function Gantt({ tasks, onTaskClick, filter }) {
   const displayed = filter === 'Todas' ? tasks : tasks.filter(t => t.category === filter)
   const hasTasks  = tasks.length > 0
 
-  // Always compute these (hooks must not be conditional)
   const dates     = hasTasks ? tasks.flatMap(t => [parseDate(t.start_date), parseDate(t.end_date)]) : [TODAY, TODAY]
   const projStart = new Date(Math.min(...dates))
   const projEnd   = new Date(Math.max(...dates))
@@ -73,7 +98,7 @@ export default function Gantt({ tasks, onTaskClick, filter }) {
         <div style={{ width: LABEL_W, flexShrink: 0, borderRight: '1px solid #1E2235' }}>
           <div style={{ height: 48, borderBottom: '1px solid #1E2235', background: '#0D1020' }} />
           {displayed.map((task, i) => {
-            const col = CATEGORY_COLORS[task.category] ?? '#64748B'
+            const col = getCategoryColor(task.category)
             return (
               <div
                 key={task.id}
@@ -139,7 +164,7 @@ export default function Gantt({ tasks, onTaskClick, filter }) {
               const e    = parseDate(task.end_date)
               const left = Math.round((s - projStart) / DAY_MS) * COL_W
               const w    = (Math.round((e - s) / DAY_MS) + 1) * COL_W
-              const col  = CATEGORY_COLORS[task.category] ?? '#64748B'
+              const col  = getCategoryColor(task.category)
               const pct  = progress(task)
 
               return (

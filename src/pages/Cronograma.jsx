@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
-import Gantt, { CATEGORY_COLORS } from '../components/Gantt'
+import Gantt, { getCategoryColor } from '../components/Gantt'
 import TaskModal from '../components/TaskModal'
 
-const CATEGORIES = ['Todas', ...Object.keys(CATEGORY_COLORS)]
+// Categorias dinâmicas — geradas a partir das tarefas carregadas
+function getCategories(tasks) {
+  const cats = [...new Set(tasks.map(t => t.category).filter(Boolean))]
+  return ['Todas', ...cats.sort()]
+}
 
 function excelDateToISO(val) {
   if (typeof val === 'string' && /\d{4}-\d{2}-\d{2}/.test(val)) return val
@@ -335,9 +339,9 @@ function ObraGantt({ obra, session, onBack }) {
       <BoletosAlerta obraId={obra.id} />
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 6, padding: '10px 24px', flexWrap: 'wrap', borderBottom: '1px solid #1E2235', flexShrink: 0 }}>
-        {CATEGORIES.map(cat => {
+        {getCategories(tasks).map(cat => {
           const active = filter === cat
-          const color  = cat === 'Todas' ? '#3B82F6' : CATEGORY_COLORS[cat]
+          const color  = cat === 'Todas' ? '#3B82F6' : getCategoryColor(cat)
           return (
             <button key={cat} onClick={() => setFilter(cat)} style={{
               padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
@@ -363,6 +367,7 @@ function ObraGantt({ obra, session, onBack }) {
           onSave={handleSave}
           onDelete={handleDelete}
           onClose={() => setModal(null)}
+          extraCategories={[...new Set(tasks.map(t => t.category).filter(Boolean))]}
         />
       )}
 

@@ -1,12 +1,7 @@
 import { useState } from 'react'
+import { getCategoryColor } from './Gantt'
 
-const CATEGORIES = ['Porcelanato','Instalações','Vinílico','Esquadrias','Gesso','Pintura','Acabamento','Geral']
-
-const COLORS = {
-  Porcelanato: '#3B82F6', Instalações: '#8B5CF6', Vinílico: '#10B981',
-  Esquadrias: '#F59E0B', Gesso: '#6366F1', Pintura: '#EC4899',
-  Acabamento: '#14B8A6', Geral: '#64748B',
-}
+const CATEGORIES_DEFAULT = ['Geral','Estrutura','Alvenaria','Hidráulica','Elétrica','Revestimento','Pintura','Cobertura','Fundação','Acabamento','Instalações','Esquadrias','Gesso','Porcelanato','Vinílico']
 
 const inp = {
   width: '100%', padding: '9px 12px', borderRadius: 8,
@@ -14,7 +9,7 @@ const inp = {
   color: '#F1F5F9', fontSize: 13, marginBottom: 16, outline: 'none',
 }
 
-export default function TaskModal({ task, onSave, onDelete, onClose }) {
+export default function TaskModal({ task, onSave, onDelete, onClose, extraCategories = [] }) {
   const isNew = !task?.id
 
   const [form, setForm] = useState({
@@ -27,6 +22,9 @@ export default function TaskModal({ task, onSave, onDelete, onClose }) {
     notes:       task?.notes       ?? '',
   })
 
+  // Merge default + extra categories from imported tasks
+  const allCategories = [...new Set([...CATEGORIES_DEFAULT, ...extraCategories])]
+
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
   function handleSave() {
@@ -35,6 +33,7 @@ export default function TaskModal({ task, onSave, onDelete, onClose }) {
   }
 
   const lbl = { fontSize: 12, fontWeight: 600, color: '#64748B', marginBottom: 6, display: 'block' }
+  const col = getCategoryColor(form.category)
 
   return (
     <div
@@ -50,20 +49,23 @@ export default function TaskModal({ task, onSave, onDelete, onClose }) {
         width: 440, maxWidth: '95vw',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9' }}>
-            {isNew ? 'Nova tarefa' : 'Editar tarefa'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 3, background: col }} />
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9' }}>
+              {isNew ? 'Nova tarefa' : 'Editar tarefa'}
+            </span>
+          </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 22, cursor: 'pointer' }}>×</button>
         </div>
 
         <label style={lbl}>Nome da tarefa</label>
-        <input style={inp} value={form.label} onChange={e => set('label', e.target.value)} placeholder="Ex: Porcelanato 3º pavimento" />
+        <input style={inp} value={form.label} onChange={e => set('label', e.target.value)} placeholder="Ex: EST- TÉRREO" />
 
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: 1 }}>
             <label style={lbl}>Categoria</label>
             <select style={{ ...inp, marginBottom: 16 }} value={form.category} onChange={e => set('category', e.target.value)}>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div style={{ flex: 1 }}>
@@ -87,7 +89,7 @@ export default function TaskModal({ task, onSave, onDelete, onClose }) {
           <label style={lbl}>Progresso</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <input
-              style={{ flex: 1, accentColor: '#3B82F6' }}
+              style={{ flex: 1, accentColor: col }}
               type="range" min={0} max={100}
               value={form.progress}
               onChange={e => set('progress', Number(e.target.value))}
@@ -100,11 +102,11 @@ export default function TaskModal({ task, onSave, onDelete, onClose }) {
                 style={{
                   width: 56, padding: '5px 8px', borderRadius: 7,
                   background: '#0F1117', border: '1px solid #1E2235',
-                  color: '#3B82F6', fontSize: 13, fontWeight: 700,
+                  color: col, fontSize: 13, fontWeight: 700,
                   outline: 'none', textAlign: 'center', fontFamily: 'inherit',
                 }}
               />
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#3B82F6' }}>%</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: col }}>%</span>
             </div>
           </div>
         </div>
@@ -132,7 +134,7 @@ export default function TaskModal({ task, onSave, onDelete, onClose }) {
             }}>Cancelar</button>
             <button onClick={handleSave} style={{
               padding: '9px 20px', borderRadius: 8, border: 'none',
-              background: 'linear-gradient(135deg, #3B82F6, #6366F1)',
+              background: `linear-gradient(135deg, ${col}, ${col}99)`,
               color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
             }}>{isNew ? 'Adicionar' : 'Salvar'}</button>
           </div>
