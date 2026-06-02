@@ -982,10 +982,10 @@ function Painel({ obra }) {
 }
 
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────
-export default function Financeiro({ session, permissoes }) {
+export default function Financeiro({ session, permissoes, abaInicial = 'painel' }) {
   const [obras,   setObras]   = useState([])
   const [obra,    setObra]    = useState(null)
-  const [aba,     setAba]     = useState('painel')
+  const [aba,     setAba]     = useState(abaInicial)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
