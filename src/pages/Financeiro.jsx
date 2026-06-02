@@ -981,7 +981,282 @@ function Painel({ obra }) {
   )
 }
 
-// ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────
+// ── CONTRATOS ─────────────────────────────────────────────────────────────
+const STATUS_CONTRATO = {
+  ativo:     { label: 'Ativo',     color: '#10B981', bg: '#064E3B' },
+  concluido: { label: 'Concluído', color: '#6366F1', bg: '#1E1B4B' },
+  suspenso:  { label: 'Suspenso',  color: '#F59E0B', bg: '#451A03' },
+  cancelado: { label: 'Cancelado', color: '#EF4444', bg: '#450A0A' },
+}
+const TIPOS_REAJUSTE = ['Nenhum','INCC','IPCA','IGP-M','IPC-A','Outro']
+const TIPOS_RETENCAO = ['Nenhuma','5%','10%','15%','Outro']
+
+function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
+  const isNew = !contrato?.id
+  const [form, setForm] = useState({
+    descricao:      contrato?.descricao      ?? '',
+    fornecedor_id:  contrato?.fornecedor_id  ?? '',
+    valor_total:    contrato?.valor_total    ?? '',
+    data_inicio:    contrato?.data_inicio    ?? '',
+    data_fim:       contrato?.data_fim       ?? '',
+    parcelas:       contrato?.parcelas       ?? '1',
+    retencao:       contrato?.retencao       ?? 'Nenhuma',
+    reajuste:       contrato?.reajuste       ?? 'Nenhum',
+    indice_reajuste:contrato?.indice_reajuste?? '',
+    status:         contrato?.status         ?? 'ativo',
+    objeto:         contrato?.objeto         ?? '',
+    observacoes:    contrato?.observacoes    ?? '',
+  })
+  const setF = (k,v) => setForm(f=>({...f,[k]:v}))
+
+  const valorParcela = form.parcelas && form.valor_total
+    ? Number(form.valor_total) / Number(form.parcelas)
+    : 0
+  const valorRetencao = form.retencao && form.retencao !== 'Nenhuma'
+    ? Number(form.valor_total||0) * (parseFloat(form.retencao)/100||0)
+    : 0
+
+  return (
+    <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:'fixed',inset:0,background:'#00000090',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1100,padding:16}}>
+      <div style={{background:'#1A1D2E',border:'1px solid #1E2235',borderRadius:16,padding:'24px',width:520,maxWidth:'100%',maxHeight:'90vh',overflowY:'auto'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <div style={{fontSize:16,fontWeight:700,color:'#F1F5F9'}}>{isNew?'Novo Contrato':'Editar Contrato'}</div>
+          <button onClick={onClose} style={{background:'none',border:'none',color:'#475569',fontSize:22,cursor:'pointer'}}>×</button>
+        </div>
+
+        <label style={lbl}>Descrição / Objeto do Contrato *</label>
+        <input style={{...inp,marginBottom:14}} value={form.descricao} onChange={e=>setF('descricao',e.target.value)} placeholder="Ex: Execução de estrutura de concreto" />
+
+        <label style={lbl}>Objeto detalhado</label>
+        <textarea style={{...inp,resize:'vertical',minHeight:56,marginBottom:14}} value={form.objeto} onChange={e=>setF('objeto',e.target.value)} placeholder="Descrição detalhada do escopo..." />
+
+        <div style={{display:'flex',gap:12,marginBottom:14}}>
+          <div style={{flex:2}}>
+            <label style={lbl}>Fornecedor *</label>
+            <select style={inp} value={form.fornecedor_id} onChange={e=>setF('fornecedor_id',e.target.value)}>
+              <option value="">Selecione...</option>
+              {fornecedores.map(f=><option key={f.id} value={f.id}>{f.nome}</option>)}
+            </select>
+          </div>
+          <div style={{flex:1}}>
+            <label style={lbl}>Status</label>
+            <select style={inp} value={form.status} onChange={e=>setF('status',e.target.value)}>
+              {Object.entries(STATUS_CONTRATO).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:12,marginBottom:14}}>
+          <div style={{flex:1}}>
+            <label style={lbl}>Valor Total (R$) *</label>
+            <input style={inp} type="number" min="0" step="0.01" value={form.valor_total} onChange={e=>setF('valor_total',e.target.value)} placeholder="0,00" />
+          </div>
+          <div style={{flex:1}}>
+            <label style={lbl}>Nº de Parcelas</label>
+            <input style={inp} type="number" min="1" max="120" value={form.parcelas} onChange={e=>setF('parcelas',e.target.value)} />
+          </div>
+        </div>
+
+        {valorParcela > 0 && (
+          <div style={{background:'#0F1117',borderRadius:8,padding:'10px 14px',marginBottom:14,fontSize:12,color:'#64748B'}}>
+            💰 Valor por parcela: <strong style={{color:'#10B981'}}>{fmtBRL(valorParcela)}</strong>
+          </div>
+        )}
+
+        <div style={{display:'flex',gap:12,marginBottom:14}}>
+          <div style={{flex:1}}>
+            <label style={lbl}>Data de início</label>
+            <input style={inp} type="date" value={form.data_inicio} onChange={e=>setF('data_inicio',e.target.value)} />
+          </div>
+          <div style={{flex:1}}>
+            <label style={lbl}>Data de término</label>
+            <input style={inp} type="date" value={form.data_fim} onChange={e=>setF('data_fim',e.target.value)} />
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:12,marginBottom:14}}>
+          <div style={{flex:1}}>
+            <label style={lbl}>Retenção</label>
+            <select style={inp} value={form.retencao} onChange={e=>setF('retencao',e.target.value)}>
+              {TIPOS_RETENCAO.map(r=><option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div style={{flex:1}}>
+            <label style={lbl}>Índice de Reajuste</label>
+            <select style={inp} value={form.reajuste} onChange={e=>setF('reajuste',e.target.value)}>
+              {TIPOS_REAJUSTE.map(r=><option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {(valorRetencao > 0) && (
+          <div style={{background:'#0F1117',borderRadius:8,padding:'10px 14px',marginBottom:14,fontSize:12,color:'#64748B'}}>
+            ✂️ Retenção: <strong style={{color:'#F59E0B'}}>{fmtBRL(valorRetencao)}</strong> ({form.retencao})
+            {' · '}Líquido: <strong style={{color:'#10B981'}}>{fmtBRL(Number(form.valor_total||0)-valorRetencao)}</strong>
+          </div>
+        )}
+
+        <label style={lbl}>Observações</label>
+        <textarea style={{...inp,resize:'vertical',minHeight:56,marginBottom:20}} value={form.observacoes} onChange={e=>setF('observacoes',e.target.value)} placeholder="Notas adicionais..." />
+
+        <div style={{display:'flex',justifyContent:'space-between',gap:8}}>
+          <div>
+            {!isNew && (
+              <button onClick={()=>onSave({...form,_delete:true})} style={{padding:'8px 16px',borderRadius:7,border:'1px solid #991B1B',background:'transparent',color:'#FCA5A5',fontWeight:600,fontSize:13,cursor:'pointer'}}>Excluir</button>
+            )}
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={onClose} style={{padding:'8px 16px',borderRadius:7,border:'1px solid #1E2235',background:'transparent',color:'#64748B',fontWeight:600,fontSize:13,cursor:'pointer'}}>Cancelar</button>
+            <button onClick={()=>onSave(form)} disabled={!form.descricao||!form.valor_total} style={{padding:'8px 18px',borderRadius:7,border:'none',background:form.descricao&&form.valor_total?'linear-gradient(135deg,#3B82F6,#6366F1)':'#334155',color:'#fff',fontWeight:700,fontSize:13,cursor:form.descricao&&form.valor_total?'pointer':'default'}}>
+              {isNew?'Criar Contrato':'Salvar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Contratos({ obra }) {
+  const [contratos,    setContratos]    = useState([])
+  const [fornecedores, setFornecedores] = useState([])
+  const [modal,        setModal]        = useState(null)
+  const [loading,      setLoading]      = useState(true)
+  const [toast,        setToast]        = useState(null)
+
+  useEffect(() => { init() }, [obra.id])
+
+  async function init() {
+    const [{ data: cts }, { data: fors }] = await Promise.all([
+      supabase.from('contratos').select('*').eq('obra_id', obra.id).order('created_at', {ascending:false}),
+      supabase.from('fornecedores').select('id,nome,categoria').order('nome'),
+    ])
+    setContratos(cts??[])
+    setFornecedores(fors??[])
+    setLoading(false)
+  }
+
+  function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null),3000) }
+
+  function getFornecedor(id) { return fornecedores.find(f=>f.id===id) }
+
+  async function handleSave(form) {
+    if (form._delete) {
+      if (!confirm('Excluir este contrato?')) return
+      await supabase.from('contratos').delete().eq('id', modal.id)
+      setModal(null); await init(); showToast('Contrato excluído.')
+      return
+    }
+    const payload = {
+      obra_id:         obra.id,
+      descricao:       form.descricao,
+      objeto:          form.objeto,
+      fornecedor_id:   form.fornecedor_id || null,
+      valor_total:     Number(form.valor_total||0),
+      parcelas:        Number(form.parcelas||1),
+      data_inicio:     form.data_inicio || null,
+      data_fim:        form.data_fim    || null,
+      retencao:        form.retencao,
+      reajuste:        form.reajuste,
+      status:          form.status,
+      observacoes:     form.observacoes,
+    }
+    if (modal?.id) {
+      await supabase.from('contratos').update(payload).eq('id', modal.id)
+    } else {
+      await supabase.from('contratos').insert(payload)
+    }
+    setModal(null); await init()
+    showToast(modal?.id ? 'Contrato atualizado!' : 'Contrato criado!')
+  }
+
+  const totalContratos = contratos.reduce((a,c)=>a+Number(c.valor_total||0),0)
+  const ativos = contratos.filter(c=>c.status==='ativo').length
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:10}}>
+        <div>
+          <div style={{fontSize:16,fontWeight:700,color:'#F1F5F9'}}>Contratos</div>
+          <div style={{fontSize:12,color:'#475569',marginTop:2}}>Contratos vinculados a esta obra</div>
+        </div>
+        <button onClick={()=>setModal({})} style={{padding:'8px 16px',borderRadius:7,border:'none',background:'linear-gradient(135deg,#3B82F6,#6366F1)',color:'#fff',fontWeight:700,fontSize:12,cursor:'pointer'}}>+ Novo Contrato</button>
+      </div>
+
+      {/* Resumo */}
+      <div style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap'}}>
+        {[
+          {label:'Total contratado', value:fmtBRL(totalContratos), color:'#3B82F6', icon:'📃'},
+          {label:'Contratos ativos', value:ativos,                 color:'#10B981', icon:'✅'},
+          {label:'Total contratos',  value:contratos.length,       color:'#64748B', icon:'📋'},
+        ].map(s=>(
+          <div key={s.label} style={{flex:1,minWidth:130,...card}}>
+            <div style={{fontSize:18,marginBottom:6}}>{s.icon}</div>
+            <div style={{fontSize:11,color:'#475569',marginBottom:2}}>{s.label}</div>
+            <div style={{fontSize:16,fontWeight:700,color:s.color}}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {loading ? <div style={{color:'#334155',fontSize:13}}>Carregando...</div>
+      : contratos.length===0 ? (
+        <div style={{textAlign:'center',padding:'40px 0',color:'#334155',fontSize:13}}>
+          <div style={{fontSize:36,marginBottom:12}}>📃</div>
+          <div style={{fontSize:14,fontWeight:600,color:'#475569',marginBottom:4}}>Nenhum contrato cadastrado</div>
+          <div style={{fontSize:12}}>Clique em "+ Novo Contrato" para começar.</div>
+        </div>
+      ) : contratos.map(c => {
+        const meta = STATUS_CONTRATO[c.status] ?? STATUS_CONTRATO.ativo
+        const forn = getFornecedor(c.fornecedor_id)
+        const valorParcela = c.parcelas > 1 ? Number(c.valor_total||0)/Number(c.parcelas||1) : null
+        const retencaoPct = c.retencao && c.retencao!=='Nenhuma' ? parseFloat(c.retencao) : 0
+        const valorRetencao = retencaoPct > 0 ? Number(c.valor_total||0)*retencaoPct/100 : 0
+
+        return (
+          <div key={c.id} onClick={()=>setModal(c)} style={{...card,marginBottom:10,cursor:'pointer',transition:'border-color 0.15s'}}
+            onMouseEnter={e=>e.currentTarget.style.borderColor='#334155'}
+            onMouseLeave={e=>e.currentTarget.style.borderColor='#1E2235'}
+          >
+            <div style={{display:'flex',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
+                  <span style={{fontSize:14,fontWeight:700,color:'#F1F5F9'}}>{c.descricao}</span>
+                  <span style={{padding:'2px 8px',borderRadius:12,fontSize:10,fontWeight:700,background:meta.bg,color:meta.color}}>{meta.label}</span>
+                </div>
+                {forn && <div style={{fontSize:12,color:'#64748B',marginBottom:4}}>🏢 {forn.nome}{forn.categoria?` · ${forn.categoria}`:''}</div>}
+                {c.objeto && <div style={{fontSize:11,color:'#475569',marginBottom:6,lineHeight:1.4}}>{c.objeto}</div>}
+                <div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:11,color:'#475569'}}>
+                  {c.data_inicio && <span>📅 Início: {new Date(c.data_inicio+'T00:00:00').toLocaleDateString('pt-BR')}</span>}
+                  {c.data_fim    && <span>🏁 Término: {new Date(c.data_fim+'T00:00:00').toLocaleDateString('pt-BR')}</span>}
+                  {c.reajuste && c.reajuste!=='Nenhum' && <span>📈 Reajuste: {c.reajuste}</span>}
+                </div>
+              </div>
+              <div style={{textAlign:'right',flexShrink:0}}>
+                <div style={{fontSize:18,fontWeight:700,color:'#F1F5F9',marginBottom:4}}>{fmtBRL(c.valor_total)}</div>
+                {valorParcela && <div style={{fontSize:11,color:'#64748B'}}>{c.parcelas}x de {fmtBRL(valorParcela)}</div>}
+                {valorRetencao > 0 && <div style={{fontSize:11,color:'#F59E0B',marginTop:2}}>✂️ Ret. {fmtBRL(valorRetencao)}</div>}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+
+      {modal!==null && (
+        <ContratoModal
+          contrato={modal?.id ? modal : null}
+          obraId={obra.id}
+          fornecedores={fornecedores}
+          onSave={handleSave}
+          onClose={()=>setModal(null)}
+        />
+      )}
+
+      {toast && <div style={{position:'fixed',bottom:24,right:24,background:'#064E3B',border:'1px solid #065F46',color:'#6EE7B7',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:600,zIndex:2000}}>{toast}</div>}
+    </div>
+  )
+}
+
+
 export default function Financeiro({ session, permissoes, abaInicial = 'painel' }) {
   const [obras,   setObras]   = useState([])
   const [obra,    setObra]    = useState(null)
@@ -1032,10 +1307,11 @@ export default function Financeiro({ session, permissoes, abaInicial = 'painel' 
   )
 
   const ABAS = [
-    {id:'painel',   label:'📊 Painel'},
-    {id:'orcamento',label:'📋 Orçamento'},
-    {id:'medicoes', label:'📐 Medições'},
-    {id:'boletos',  label:'📄 Boletos'},
+    {id:'painel',    label:'📊 Painel'},
+    {id:'contratos', label:'📃 Contratos'},
+    {id:'orcamento', label:'📋 Orçamento'},
+    {id:'medicoes',  label:'📐 Medições'},
+    {id:'boletos',   label:'📄 Boletos'},
   ]
 
   return (
@@ -1052,6 +1328,7 @@ export default function Financeiro({ session, permissoes, abaInicial = 'painel' 
       </div>
       <div style={{flex:1,overflowY:'auto',padding:'24px'}}>
         {aba==='painel'    && <Painel    obra={obra} />}
+        {aba==='contratos' && <Contratos obra={obra} />}
         {aba==='orcamento' && <Orcamento obra={obra} />}
         {aba==='medicoes'  && <Medicoes  obra={obra} />}
         {aba==='boletos'   && <Boletos   obra={obra} />}
