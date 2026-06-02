@@ -1027,11 +1027,12 @@ function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
     const { error: upErr } = await supabase.storage.from('documentos').upload(path, file, { upsert: true })
     if (upErr) { setReadMsg('❌ Erro ao salvar PDF.'); setUploading(false); return }
     const { data: urlData } = supabase.storage.from('documentos').getPublicUrl(path)
-    setF('arquivo_url',  urlData.publicUrl)
+    const publicUrl = urlData.publicUrl  // ← salva em variável local
+    setF('arquivo_url',  publicUrl)
     setF('arquivo_nome', file.name)
     setUploading(false)
 
-    // 2. Leitura via Edge Function (envia URL, não base64)
+    // 2. Leitura via Edge Function (usa variável local, não form.arquivo_url)
     setReading(true)
     setReadMsg('🤖 Analisando contrato com IA...')
     try {
@@ -1044,7 +1045,7 @@ function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ pdfUrl: form.arquivo_url })
+          body: JSON.stringify({ pdfUrl: publicUrl })  // ← usa variável local
         }
       )
       const parsed = await res.json()
