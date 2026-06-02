@@ -2,11 +2,69 @@ import { useState, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 
-// ── Recharts (curvas) ─────────────────────────────────────────────────────
-import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, ReferenceLine,
-} from 'recharts'
+// ── SVG Chart helpers ─────────────────────────────────────────────────────
+function SvgLineChart({ data, lines, height = 220 }) {
+  if (!data.length) return null
+  const W = 600, H = height, PL = 48, PR = 16, PT = 12, PB = 28
+  const iW = W - PL - PR, iH = H - PT - PB
+  const allVals = lines.flatMap(l => data.map(d => d[l.key] ?? 0))
+  const maxV = Math.max(...allVals, 1)
+  const px = (i) => PL + (i / (data.length - 1 || 1)) * iW
+  const py = (v) => PT + iH - (v / maxV) * iH
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height }} preserveAspectRatio="none">
+      {[0,25,50,75,100].map(p => (
+        <line key={p} x1={PL} x2={W-PR} y1={PT + iH*(1-p/100)} y2={PT + iH*(1-p/100)} stroke="#1E2235" strokeWidth="1" />
+      ))}
+      {data.map((d, i) => (
+        <text key={i} x={px(i)} y={H-6} textAnchor="middle" fontSize="9" fill="#475569">{d.mes}</text>
+      ))}
+      {[0,25,50,75,100].map(p => (
+        <text key={p} x={PL-4} y={PT + iH*(1-p/100) + 3} textAnchor="end" fontSize="9" fill="#475569">{p}%</text>
+      ))}
+      {lines.map(l => {
+        const pts = data.map((d,i) => `${px(i)},${py(d[l.key]??0)}`).join(' ')
+        return (
+          <g key={l.key}>
+            <polyline points={pts} fill="none" stroke={l.color} strokeWidth="2"
+              strokeDasharray={l.dashed ? '6 3' : undefined} />
+            {data.map((d,i) => <circle key={i} cx={px(i)} cy={py(d[l.key]??0)} r="3" fill={l.color} />)}
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+function SvgBarChart({ data, bars, height = 180, formatY }) {
+  if (!data.length) return null
+  const W = 600, H = height, PL = 56, PR = 16, PT = 12, PB = 28
+  const iW = W - PL - PR, iH = H - PT - PB
+  const allVals = bars.flatMap(b => data.map(d => d[b.key] ?? 0))
+  const maxV = Math.max(...allVals, 1)
+  const slotW = iW / data.length
+  const barW = Math.max(4, (slotW / (bars.length + 1)) - 2)
+  const fmt = formatY ?? (v => v > 999 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0))
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height }} preserveAspectRatio="none">
+      {[0,25,50,75,100].map(p => (
+        <line key={p} x1={PL} x2={W-PR} y1={PT + iH*(1-p/100)} y2={PT + iH*(1-p/100)} stroke="#1E2235" strokeWidth="1" />
+      ))}
+      {data.map((d,i) => (
+        <text key={i} x={PL + slotW*i + slotW/2} y={H-6} textAnchor="middle" fontSize="9" fill="#475569">{d.mes}</text>
+      ))}
+      {[0,25,50,75,100].map(p => (
+        <text key={p} x={PL-4} y={PT + iH*(1-p/100) + 3} textAnchor="end" fontSize="9" fill="#475569">{fmt(maxV*p/100)}</text>
+      ))}
+      {data.map((d,i) => bars.map((b,bi) => {
+        const v = d[b.key] ?? 0
+        const bH = (v / maxV) * iH
+        const x = PL + slotW*i + slotW/(bars.length+1) * (bi+1)
+        return <rect key={b.key} x={x - barW/2} y={PT + iH - bH} width={barW} height={bH} fill={b.color} rx="3" />
+      }))}
+    </svg>
+  )
+}
 
 const CATEGORIAS = ['Geral','Porcelanato','Instalações','Vinílico','Esquadrias','Gesso','Pintura','Acabamento','Fundação','Estrutura','Alvenaria','Cobertura','Hidráulica','Elétrica','Ar Condicionado','MO Geral']
 const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']
@@ -628,6 +686,7 @@ function Medicoes({ obra }) {
   const [toast,     setToast]     = useState(null)
   const [novaMed,   setNovaMed]   = useState(false)
   const [novoMes,   setNovoMes]   = useState('')
+  const [novoDia,   setNovoDia]   = useState('25')
 
   useEffect(() => { init() }, [obra.id])
 
@@ -644,7 +703,9 @@ function Medicoes({ obra }) {
   async function criarMedicao() {
     if (!novoMes) return
     const num = (medicoes[0]?.numero??0)+1
-    const { data } = await supabase.from('medicoes').insert({obra_id:obra.id,numero:num,mes_ref:novoMes+'-01',status:'rascunho'}).select().single()
+    const dia = String(novoDia).padStart(2,'0')
+    const mesRef = `${novoMes}-${dia}`
+    const { data } = await supabase.from('medicoes').insert({obra_id:obra.id,numero:num,mes_ref:mesRef,status:'rascunho'}).select().single()
     if (data && orcItens.length) {
       await supabase.from('medicao_itens').insert(orcItens.map(o=>({medicao_id:data.id,orcamento_item_id:o.id,descricao:o.descricao,categoria:o.categoria,tipo:o.tipo||'MA',qtd_prevista:o.quantidade,qtd_medida:0,valor_unit:o.valor_unit})))
     }
@@ -766,13 +827,31 @@ function Medicoes({ obra }) {
       </div>
 
       {novaMed && (
-        <div style={{background:'#1A1D2E',border:'1px solid #1E3A5F',borderRadius:10,padding:'16px',marginBottom:16,display:'flex',gap:12,alignItems:'flex-end'}}>
-          <div style={{flex:1}}>
-            <label style={lbl}>Mês de referência</label>
-            <input style={inp} type="month" value={novoMes} onChange={e=>setNovoMes(e.target.value)} />
+        <div style={{background:'#1A1D2E',border:'1px solid #1E3A5F',borderRadius:10,padding:'16px',marginBottom:16}}>
+          <div style={{display:'flex',gap:12,alignItems:'flex-end',flexWrap:'wrap'}}>
+            <div style={{flex:1,minWidth:140}}>
+              <label style={lbl}>Mês de referência</label>
+              <select style={inp} value={novoMes} onChange={e=>setNovoMes(e.target.value)}>
+                <option value="">Selecione o mês...</option>
+                {Array.from({length:12},(_,i)=>{
+                  const d = new Date(); d.setMonth(d.getMonth()-3+i)
+                  const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+                  const label = d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'})
+                  return <option key={val} value={val}>{label.charAt(0).toUpperCase()+label.slice(1)}</option>
+                })}
+              </select>
+            </div>
+            <div style={{minWidth:120}}>
+              <label style={lbl}>Dia da medição</label>
+              <select style={inp} value={novoDia} onChange={e=>setNovoDia(e.target.value)}>
+                {[1,5,10,15,20,25,28,30].map(d=>(
+                  <option key={d} value={d}>Dia {d}{d===25?' (padrão)':''}</option>
+                ))}
+              </select>
+            </div>
+            <button onClick={criarMedicao} style={{padding:'8px 18px',borderRadius:7,border:'none',background:'#3B82F6',color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer',marginBottom:1}}>Criar</button>
+            <button onClick={()=>setNovaMed(false)} style={{padding:'8px 14px',borderRadius:7,border:'1px solid #1E2235',background:'transparent',color:'#64748B',fontWeight:600,fontSize:13,cursor:'pointer',marginBottom:1}}>Cancelar</button>
           </div>
-          <button onClick={criarMedicao} style={{padding:'8px 18px',borderRadius:7,border:'none',background:'#3B82F6',color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Criar</button>
-          <button onClick={()=>setNovaMed(false)} style={{padding:'8px 14px',borderRadius:7,border:'1px solid #1E2235',background:'transparent',color:'#64748B',fontWeight:600,fontSize:13,cursor:'pointer'}}>Cancelar</button>
         </div>
       )}
 
