@@ -991,8 +991,12 @@ const STATUS_CONTRATO = {
 const TIPOS_REAJUSTE = ['Nenhum','INCC','IPCA','IGP-M','IPC-A','Outro']
 const TIPOS_RETENCAO = ['Nenhuma','5%','10%','15%','Outro']
 
-function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
+function ContratoModal({ contrato, obraId, fornecedores: fornecedoresInit, onSave, onClose, onFornecedorCriado }) {
   const isNew = !contrato?.id
+  const [fornecedores, setFornecedores] = useState(fornecedoresInit ?? [])
+
+  // Sync fornecedores when prop changes
+  useEffect(() => { setFornecedores(fornecedoresInit ?? []) }, [fornecedoresInit?.length])
   const [form, setForm] = useState({
     descricao:      contrato?.descricao      ?? '',
     fornecedor_id:  contrato?.fornecedor_id  ?? '',
@@ -1070,8 +1074,9 @@ function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
           setReadMsg('✅ Contrato lido! Fornecedor encontrado: ' + match.nome)
         } else if (parsed.fornecedor_nome) {
           // Cria fornecedor automaticamente
+          const { data: { user } } = await supabase.auth.getUser()
           const { data: novoForn } = await supabase.from('fornecedores').insert({
-            owner_id: (await supabase.auth.getUser()).data.user.id,
+            owner_id: user.id,
             nome:      parsed.fornecedor_nome,
             cnpj:      cnpjLimpo ? cnpjLimpo.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5') : null,
             telefone:  parsed.fornecedor_telefone || null,
@@ -1081,7 +1086,10 @@ function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
           }).select().single()
           if (novoForn) {
             fornId = novoForn.id
-            setReadMsg('✅ Contrato lido! Fornecedor "' + parsed.fornecedor_nome + '" criado automaticamente.')
+            const { data: forsAtual } = await supabase.from('fornecedores').select('id,nome,categoria').order('nome')
+            setFornecedores(forsAtual ?? [])
+            if (onFornecedorCriado) onFornecedorCriado()
+            setReadMsg('✅ Contrato lido! Fornecedor "' + parsed.fornecedor_nome + '" criado e vinculado automaticamente.')
           }
         }
       }
@@ -1258,6 +1266,11 @@ function Contratos({ obra }) {
     setLoading(false)
   }
 
+  async function reloadFornecedores() {
+    const { data: fors } = await supabase.from('fornecedores').select('id,nome,categoria').order('nome')
+    setFornecedores(fors??[])
+  }
+
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null),3000) }
 
   function getFornecedor(id) { return fornecedores.find(f=>f.id===id) }
@@ -1374,6 +1387,7 @@ function Contratos({ obra }) {
           fornecedores={fornecedores}
           onSave={handleSave}
           onClose={()=>setModal(null)}
+          onFornecedorCriado={reloadFornecedores}
         />
       )}
 
