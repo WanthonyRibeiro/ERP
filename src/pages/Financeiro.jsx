@@ -1031,63 +1031,53 @@ function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
     setF('arquivo_nome', file.name)
     setUploading(false)
 
-    // 2. Leitura via Edge Function
+    // 2. Leitura via Edge Function (envia URL, não base64)
     setReading(true)
     setReadMsg('🤖 Analisando contrato com IA...')
     try {
-      const reader = new FileReader()
-      reader.onload = async (ev) => {
-        const base64 = ev.target.result.split(',')[1]
-        try {
-          const { data: { session } } = await supabase.auth.getSession()
-          const res = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ler-contrato`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({ pdfBase64: base64 })
-            }
-          )
-          const parsed = await res.json()
-          if (parsed.error) throw new Error(parsed.error)
-
-          // Tenta vincular fornecedor pelo nome
-          let fornId = ''
-          if (parsed.fornecedor_nome) {
-            const match = fornecedores.find(f =>
-              f.nome.toLowerCase().includes(parsed.fornecedor_nome.toLowerCase()) ||
-              parsed.fornecedor_nome.toLowerCase().includes(f.nome.toLowerCase())
-            )
-            if (match) fornId = match.id
-          }
-
-          setForm(f => ({
-            ...f,
-            descricao:    parsed.descricao    || f.descricao,
-            objeto:       parsed.objeto       || f.objeto,
-            valor_total:  parsed.valor_total  || f.valor_total,
-            parcelas:     parsed.parcelas     || f.parcelas,
-            data_inicio:  parsed.data_inicio  || f.data_inicio,
-            data_fim:     parsed.data_fim     || f.data_fim,
-            retencao:     TIPOS_RETENCAO.includes(parsed.retencao) ? parsed.retencao : (parsed.retencao?.includes('%') ? 'Outro' : 'Nenhuma'),
-            reajuste:     TIPOS_REAJUSTE.includes(parsed.reajuste) ? parsed.reajuste : (parsed.reajuste && parsed.reajuste!=='Nenhum' ? 'Outro' : 'Nenhum'),
-            observacoes:  parsed.observacoes  || f.observacoes,
-            fornecedor_id: fornId || f.fornecedor_id,
-          }))
-          setReadMsg(`✅ Contrato lido! ${!fornId && parsed.fornecedor_nome ? `Fornecedor "${parsed.fornecedor_nome}" não encontrado no cadastro.` : ''}`.trim())
-        } catch(err) {
-          setReadMsg('⚠️ IA não conseguiu extrair os dados. Preencha manualmente.')
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ler-contrato`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ pdfUrl: form.arquivo_url })
         }
-        setReading(false)
+      )
+      const parsed = await res.json()
+      if (parsed.error) throw new Error(parsed.error)
+
+      // Tenta vincular fornecedor pelo nome
+      let fornId = ''
+      if (parsed.fornecedor_nome) {
+        const match = fornecedores.find(f =>
+          f.nome.toLowerCase().includes(parsed.fornecedor_nome.toLowerCase()) ||
+          parsed.fornecedor_nome.toLowerCase().includes(f.nome.toLowerCase())
+        )
+        if (match) fornId = match.id
       }
-      reader.readAsDataURL(file)
-    } catch {
-      setReadMsg('❌ Erro ao processar PDF.')
-      setReading(false)
+
+      setForm(f => ({
+        ...f,
+        descricao:    parsed.descricao    || f.descricao,
+        objeto:       parsed.objeto       || f.objeto,
+        valor_total:  parsed.valor_total  || f.valor_total,
+        parcelas:     parsed.parcelas     || f.parcelas,
+        data_inicio:  parsed.data_inicio  || f.data_inicio,
+        data_fim:     parsed.data_fim     || f.data_fim,
+        retencao:     TIPOS_RETENCAO.includes(parsed.retencao) ? parsed.retencao : (parsed.retencao?.includes('%') ? 'Outro' : 'Nenhuma'),
+        reajuste:     TIPOS_REAJUSTE.includes(parsed.reajuste) ? parsed.reajuste : (parsed.reajuste && parsed.reajuste!=='Nenhum' ? 'Outro' : 'Nenhum'),
+        observacoes:  parsed.observacoes  || f.observacoes,
+        fornecedor_id: fornId || f.fornecedor_id,
+      }))
+      setReadMsg(`✅ Contrato lido! ${!fornId && parsed.fornecedor_nome ? `Fornecedor "${parsed.fornecedor_nome}" não encontrado no cadastro.` : ''}`.trim())
+    } catch(err) {
+      setReadMsg('⚠️ IA não conseguiu extrair os dados. Preencha manualmente.')
     }
+    setReading(false)
   }
 
   const valorParcela = form.parcelas && form.valor_total
