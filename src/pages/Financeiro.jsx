@@ -1031,51 +1031,28 @@ function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
     setF('arquivo_nome', file.name)
     setUploading(false)
 
-    // 2. Leitura via IA
+    // 2. Leitura via Edge Function
     setReading(true)
     setReadMsg('🤖 Analisando contrato com IA...')
     try {
       const reader = new FileReader()
       reader.onload = async (ev) => {
         const base64 = ev.target.result.split(',')[1]
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1000,
-            messages: [{
-              role: 'user',
-              content: [
-                {
-                  type: 'document',
-                  source: { type: 'base64', media_type: 'application/pdf', data: base64 }
-                },
-                {
-                  type: 'text',
-                  text: `Analise este contrato e extraia as informações. Responda APENAS em JSON válido, sem texto adicional, sem markdown, sem blocos de código:
-{
-  "descricao": "título ou objeto resumido do contrato (max 80 chars)",
-  "objeto": "descrição detalhada do escopo/objeto do contrato",
-  "fornecedor_nome": "nome da empresa contratada",
-  "valor_total": 0,
-  "parcelas": 1,
-  "data_inicio": "YYYY-MM-DD ou null",
-  "data_fim": "YYYY-MM-DD ou null",
-  "retencao": "porcentagem de retenção ex: 10% ou Nenhuma",
-  "reajuste": "índice de reajuste ex: INCC, IPCA ou Nenhum",
-  "observacoes": "outras informações relevantes do contrato"
-}`
-                }
-              ]
-            }]
-          })
-        })
-        const data = await res.json()
-        const text = data.content?.[0]?.text ?? ''
         try {
-          const clean = text.replace(/```json|```/g,'').trim()
-          const parsed = JSON.parse(clean)
+          const { data: { session } } = await supabase.auth.getSession()
+          const res = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ler-contrato`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ pdfBase64: base64 })
+            }
+          )
+          const parsed = await res.json()
+          if (parsed.error) throw new Error(parsed.error)
 
           // Tenta vincular fornecedor pelo nome
           let fornId = ''
@@ -1100,8 +1077,8 @@ function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
             observacoes:  parsed.observacoes  || f.observacoes,
             fornecedor_id: fornId || f.fornecedor_id,
           }))
-          setReadMsg(`✅ Contrato lido! ${fornId ? '' : parsed.fornecedor_nome ? `Fornecedor "${parsed.fornecedor_nome}" não encontrado no cadastro.` : ''}`.trim())
-        } catch {
+          setReadMsg(`✅ Contrato lido! ${!fornId && parsed.fornecedor_nome ? `Fornecedor "${parsed.fornecedor_nome}" não encontrado no cadastro.` : ''}`.trim())
+        } catch(err) {
           setReadMsg('⚠️ IA não conseguiu extrair os dados. Preencha manualmente.')
         }
         setReading(false)
