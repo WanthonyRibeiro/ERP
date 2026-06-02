@@ -7,6 +7,7 @@ const ALL_MODULES = [
   { id: 'cronograma',    icon: '📅',  label: 'Cronograma',    modulo: 'cronograma' },
   { id: 'financeiro',    icon: '💰',  label: 'Financeiro',    modulo: 'financeiro' },
   { id: 'rdo',           icon: '📋',  label: 'RDO',           modulo: 'rdo',       soon: true },
+  { id: 'fornecedores',   icon: '🏢',  label: 'Fornecedores',  modulo: 'fornecedores' },
   { id: 'configuracoes', icon: '⚙️',  label: 'Configurações', adminOnly: true },
 ]
 

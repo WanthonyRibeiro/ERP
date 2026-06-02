@@ -6,6 +6,7 @@ import Compras from './pages/Compras'
 import Cronograma from './pages/Cronograma'
 import Financeiro from './pages/Financeiro'
 import Configuracoes from './pages/Configuracoes'
+import Fornecedores from './pages/Fornecedores'
 import { usePermissoes } from './lib/usePermissoes'
 import FeedbackButton from './components/FeedbackButton'
 import Sidebar from './components/Sidebar'
@@ -45,6 +46,7 @@ export default function App() {
         {module === 'compras'       && <Compras       session={session} permissoes={permissoes} />}
         {module === 'cronograma'    && <Cronograma    session={session} permissoes={permissoes} />}
         {module === 'financeiro'    && <Financeiro    session={session} permissoes={permissoes} />}
+        {module === 'fornecedores'  && <Fornecedores  session={session} />}
         {module === 'configuracoes' && <Configuracoes session={session} />}
         <FeedbackButton session={session} />
       </div>
