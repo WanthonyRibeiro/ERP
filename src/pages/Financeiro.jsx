@@ -1006,8 +1006,112 @@ function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
     status:         contrato?.status         ?? 'ativo',
     objeto:         contrato?.objeto         ?? '',
     observacoes:    contrato?.observacoes    ?? '',
+    arquivo_url:    contrato?.arquivo_url    ?? '',
+    arquivo_nome:   contrato?.arquivo_nome   ?? '',
   })
   const setF = (k,v) => setForm(f=>({...f,[k]:v}))
+  const [reading,  setReading]  = useState(false)
+  const [readMsg,  setReadMsg]  = useState('')
+  const [uploading,setUploading]= useState(false)
+  const pdfRef = useRef()
+
+  async function handlePDF(file) {
+    if (!file) return
+    if (file.type !== 'application/pdf') { setReadMsg('⚠️ Apenas PDF é suportado.'); return }
+    if (file.size > 20 * 1024 * 1024) { setReadMsg('⚠️ PDF muito grande. Máximo 20 MB.'); return }
+
+    // 1. Upload para o Supabase Storage
+    setUploading(true)
+    setReadMsg('📤 Enviando PDF...')
+    const path = `contratos/${obraId}/${Date.now()}_${file.name.replace(/\s+/g,'_')}`
+    const { error: upErr } = await supabase.storage.from('documentos').upload(path, file, { upsert: true })
+    if (upErr) { setReadMsg('❌ Erro ao salvar PDF.'); setUploading(false); return }
+    const { data: urlData } = supabase.storage.from('documentos').getPublicUrl(path)
+    setF('arquivo_url',  urlData.publicUrl)
+    setF('arquivo_nome', file.name)
+    setUploading(false)
+
+    // 2. Leitura via IA
+    setReading(true)
+    setReadMsg('🤖 Analisando contrato com IA...')
+    try {
+      const reader = new FileReader()
+      reader.onload = async (ev) => {
+        const base64 = ev.target.result.split(',')[1]
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            messages: [{
+              role: 'user',
+              content: [
+                {
+                  type: 'document',
+                  source: { type: 'base64', media_type: 'application/pdf', data: base64 }
+                },
+                {
+                  type: 'text',
+                  text: `Analise este contrato e extraia as informações. Responda APENAS em JSON válido, sem texto adicional, sem markdown, sem blocos de código:
+{
+  "descricao": "título ou objeto resumido do contrato (max 80 chars)",
+  "objeto": "descrição detalhada do escopo/objeto do contrato",
+  "fornecedor_nome": "nome da empresa contratada",
+  "valor_total": 0,
+  "parcelas": 1,
+  "data_inicio": "YYYY-MM-DD ou null",
+  "data_fim": "YYYY-MM-DD ou null",
+  "retencao": "porcentagem de retenção ex: 10% ou Nenhuma",
+  "reajuste": "índice de reajuste ex: INCC, IPCA ou Nenhum",
+  "observacoes": "outras informações relevantes do contrato"
+}`
+                }
+              ]
+            }]
+          })
+        })
+        const data = await res.json()
+        const text = data.content?.[0]?.text ?? ''
+        try {
+          const clean = text.replace(/```json|```/g,'').trim()
+          const parsed = JSON.parse(clean)
+
+          // Tenta vincular fornecedor pelo nome
+          let fornId = ''
+          if (parsed.fornecedor_nome) {
+            const match = fornecedores.find(f =>
+              f.nome.toLowerCase().includes(parsed.fornecedor_nome.toLowerCase()) ||
+              parsed.fornecedor_nome.toLowerCase().includes(f.nome.toLowerCase())
+            )
+            if (match) fornId = match.id
+          }
+
+          setForm(f => ({
+            ...f,
+            descricao:    parsed.descricao    || f.descricao,
+            objeto:       parsed.objeto       || f.objeto,
+            valor_total:  parsed.valor_total  || f.valor_total,
+            parcelas:     parsed.parcelas     || f.parcelas,
+            data_inicio:  parsed.data_inicio  || f.data_inicio,
+            data_fim:     parsed.data_fim     || f.data_fim,
+            retencao:     TIPOS_RETENCAO.includes(parsed.retencao) ? parsed.retencao : (parsed.retencao?.includes('%') ? 'Outro' : 'Nenhuma'),
+            reajuste:     TIPOS_REAJUSTE.includes(parsed.reajuste) ? parsed.reajuste : (parsed.reajuste && parsed.reajuste!=='Nenhum' ? 'Outro' : 'Nenhum'),
+            observacoes:  parsed.observacoes  || f.observacoes,
+            fornecedor_id: fornId || f.fornecedor_id,
+          }))
+          setReadMsg(`✅ Contrato lido! ${fornId ? '' : parsed.fornecedor_nome ? `Fornecedor "${parsed.fornecedor_nome}" não encontrado no cadastro.` : ''}`.trim())
+        } catch {
+          setReadMsg('⚠️ IA não conseguiu extrair os dados. Preencha manualmente.')
+        }
+        setReading(false)
+      }
+      reader.readAsDataURL(file)
+    } catch {
+      setReadMsg('❌ Erro ao processar PDF.')
+      setReading(false)
+    }
+  }
 
   const valorParcela = form.parcelas && form.valor_total
     ? Number(form.valor_total) / Number(form.parcelas)
@@ -1021,8 +1125,31 @@ function ContratoModal({ contrato, obraId, fornecedores, onSave, onClose }) {
       <div style={{background:'#1A1D2E',border:'1px solid #1E2235',borderRadius:16,padding:'24px',width:520,maxWidth:'100%',maxHeight:'90vh',overflowY:'auto'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
           <div style={{fontSize:16,fontWeight:700,color:'#F1F5F9'}}>{isNew?'Novo Contrato':'Editar Contrato'}</div>
-          <button onClick={onClose} style={{background:'none',border:'none',color:'#475569',fontSize:22,cursor:'pointer'}}>×</button>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <label style={{padding:'6px 12px',borderRadius:7,border:'1px solid #1E3A5F',background:'transparent',color:'#93C5FD',fontSize:12,fontWeight:600,cursor:reading||uploading?'default':'pointer',opacity:reading||uploading?0.6:1,display:'flex',alignItems:'center',gap:5}}>
+              {reading||uploading ? '⏳ Processando...' : '📄 Importar PDF'}
+              <input ref={pdfRef} type="file" accept=".pdf" style={{display:'none'}} disabled={reading||uploading} onChange={e=>handlePDF(e.target.files[0])} />
+            </label>
+            <button onClick={onClose} style={{background:'none',border:'none',color:'#475569',fontSize:22,cursor:'pointer'}}>×</button>
+          </div>
         </div>
+
+        {/* Status da leitura do PDF */}
+        {readMsg && (
+          <div style={{padding:'10px 14px',borderRadius:8,background:readMsg.startsWith('✅')?'#064E3B':readMsg.startsWith('⚠️')||readMsg.startsWith('❌')?'#450A0A':'#1E3A5F',border:`1px solid ${readMsg.startsWith('✅')?'#065F46':readMsg.startsWith('⚠️')||readMsg.startsWith('❌')?'#991B1B':'#1E40AF'}`,color:readMsg.startsWith('✅')?'#6EE7B7':readMsg.startsWith('⚠️')||readMsg.startsWith('❌')?'#FCA5A5':'#93C5FD',fontSize:12,fontWeight:600,marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+            <span>{readMsg}</span>
+            <button onClick={()=>setReadMsg('')} style={{background:'none',border:'none',color:'inherit',fontSize:14,cursor:'pointer',opacity:0.7}}>×</button>
+          </div>
+        )}
+
+        {/* PDF anexado */}
+        {form.arquivo_url && (
+          <div style={{padding:'10px 14px',borderRadius:8,background:'#0F1117',border:'1px solid #1E3A5F',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+            <span style={{fontSize:18}}>📎</span>
+            <span style={{fontSize:12,color:'#93C5FD',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{form.arquivo_nome||'Contrato PDF'}</span>
+            <a href={form.arquivo_url} target="_blank" rel="noreferrer" style={{fontSize:11,color:'#3B82F6',fontWeight:600,textDecoration:'none',flexShrink:0}}>Abrir</a>
+          </div>
+        )}
 
         <label style={lbl}>Descrição / Objeto do Contrato *</label>
         <input style={{...inp,marginBottom:14}} value={form.descricao} onChange={e=>setF('descricao',e.target.value)} placeholder="Ex: Execução de estrutura de concreto" />
@@ -1160,6 +1287,8 @@ function Contratos({ obra }) {
       reajuste:        form.reajuste,
       status:          form.status,
       observacoes:     form.observacoes,
+      arquivo_url:     form.arquivo_url  || null,
+      arquivo_nome:    form.arquivo_nome || null,
     }
     if (modal?.id) {
       await supabase.from('contratos').update(payload).eq('id', modal.id)
