@@ -128,7 +128,7 @@ function BoletosAlerta({ obraId }) {
 }
 
 // ── Gantt de uma obra ─────────────────────────────────────────────────────
-function ObraGantt({ obra, session, onBack }) {
+function ObraGantt({ obra, session, onBack, modoFinanceiro = false }) {
   const [tasks,   setTasks]   = useState([])
   const [modal,   setModal]   = useState(null)
   const [filter,  setFilter]  = useState('Todas')
@@ -297,6 +297,9 @@ function ObraGantt({ obra, session, onBack }) {
               <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: meta.bg, color: meta.color }}>
                 {meta.label}
               </span>
+              <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: modoFinanceiro ? '#064E3B' : '#1E3A5F', color: modoFinanceiro ? '#6EE7B7' : '#93C5FD' }}>
+                {modoFinanceiro ? '📊 Físico-Financeiro' : '🔨 Físico'}
+              </span>
             </div>
             {obra.endereco && <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{obra.endereco}</div>}
           </div>
@@ -384,11 +387,89 @@ function ObraGantt({ obra, session, onBack }) {
   )
 }
 
+// ── Seleção de tipo de Gantt ──────────────────────────────────────────────
+function SelecionarTipo({ obra, onSelect, onBack }) {
+  const meta = STATUS_META[obra.status] ?? STATUS_META.em_andamento
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif" }}>
+      {/* Header */}
+      <div style={{ background: '#1A1D2E', borderBottom: '1px solid #1E2235', padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <button onClick={onBack} style={{ background: 'none', border: '1px solid #1E2235', borderRadius: 7, color: '#64748B', fontSize: 13, cursor: 'pointer', padding: '5px 10px' }}>← Voltar</button>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9' }}>{obra.nome}</span>
+            <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: meta.bg, color: meta.color }}>{meta.label}</span>
+          </div>
+          {obra.endereco && <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{obra.endereco}</div>}
+        </div>
+      </div>
+
+      {/* Seleção */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <div style={{ maxWidth: 600, width: '100%' }}>
+          <div style={{ textAlign: 'center', marginBottom: 40 }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>📅</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#F1F5F9', marginBottom: 8 }}>Qual cronograma deseja abrir?</div>
+            <div style={{ fontSize: 13, color: '#475569' }}>Escolha o tipo de visualização para <strong style={{ color: '#94A3B8' }}>{obra.nome}</strong></div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            {/* Físico */}
+            <div
+              onClick={() => onSelect('fisico')}
+              style={{
+                flex: 1, minWidth: 220, background: '#1A1D2E', border: '1px solid #1E3A5F',
+                borderRadius: 16, padding: '28px 24px', cursor: 'pointer', transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#1E2A45'; e.currentTarget.style.borderColor = '#3B82F6'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#1A1D2E'; e.currentTarget.style.borderColor = '#1E3A5F'; e.currentTarget.style.transform = 'translateY(0)' }}
+            >
+              <div style={{ fontSize: 36, marginBottom: 16 }}>🔨</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', marginBottom: 8 }}>Cronograma Físico</div>
+              <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
+                Acompanhamento diário do andamento da obra. Atualize o progresso de cada tarefa livremente.
+              </div>
+              <div style={{ marginTop: 16, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {['Uso diário', 'Progresso livre', 'Gantt visual'].map(t => (
+                  <span key={t} style={{ padding: '3px 8px', borderRadius: 6, background: '#1E3A5F', color: '#93C5FD', fontSize: 11, fontWeight: 600 }}>{t}</span>
+                ))}
+              </div>
+            </div>
+
+            {/* Físico-Financeiro */}
+            <div
+              onClick={() => onSelect('financeiro')}
+              style={{
+                flex: 1, minWidth: 220, background: '#1A1D2E', border: '1px solid #064E3B',
+                borderRadius: 16, padding: '28px 24px', cursor: 'pointer', transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#1A2E25'; e.currentTarget.style.borderColor = '#10B981'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#1A1D2E'; e.currentTarget.style.borderColor = '#064E3B'; e.currentTarget.style.transform = 'translateY(0)' }}
+            >
+              <div style={{ fontSize: 36, marginBottom: 16 }}>📊</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', marginBottom: 8 }}>Cronograma Físico-Financeiro</div>
+              <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
+                Medição mensal por contrato e fornecedor. Emita medições todo dia 25 e atualize o Gantt automaticamente.
+              </div>
+              <div style={{ marginTop: 16, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {['Medição mensal', 'Por contrato', 'Dia 25'].map(t => (
+                  <span key={t} style={{ padding: '3px 8px', borderRadius: 6, background: '#064E3B', color: '#6EE7B7', fontSize: 11, fontWeight: 600 }}>{t}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Componente principal ──────────────────────────────────────────────────
 export default function Cronograma({ session, permissoes }) {
-  const [obras,       setObras]       = useState([])
+  const [obras,           setObras]           = useState([])
   const [obraSelecionada, setObraSelecionada] = useState(null)
-  const [loading,     setLoading]     = useState(true)
+  const [tipoGantt,       setTipoGantt]       = useState(null) // 'fisico' | 'financeiro'
+  const [loading,         setLoading]         = useState(true)
 
   useEffect(() => {
     async function fetchObras() {
@@ -399,11 +480,38 @@ export default function Cronograma({ session, permissoes }) {
     fetchObras()
   }, [])
 
-  if (obraSelecionada) {
+  // Voltou da obra → limpa tipo também
+  function handleBack() {
+    if (tipoGantt) { setTipoGantt(null) }
+    else { setObraSelecionada(null) }
+  }
+
+  if (obraSelecionada && tipoGantt === 'fisico') {
     return (
       <ObraGantt
         obra={obraSelecionada}
         session={session}
+        onBack={handleBack}
+      />
+    )
+  }
+
+  if (obraSelecionada && tipoGantt === 'financeiro') {
+    return (
+      <ObraGantt
+        obra={obraSelecionada}
+        session={session}
+        onBack={handleBack}
+        modoFinanceiro
+      />
+    )
+  }
+
+  if (obraSelecionada && !tipoGantt) {
+    return (
+      <SelecionarTipo
+        obra={obraSelecionada}
+        onSelect={setTipoGantt}
         onBack={() => setObraSelecionada(null)}
       />
     )
