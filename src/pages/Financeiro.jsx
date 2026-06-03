@@ -1962,15 +1962,24 @@ export default function Financeiro({ session, permissoes, abaInicial = 'painel' 
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    (()=>{
-      const isAdmin = permissoes?.isAdmin ?? true
-      let q = supabase.from('obras').select('*').order('created_at',{ascending:false})
-      if (isAdmin) return q.eq('owner_id', session.user.id)
-      const ids = permissoes?.obrasIds ?? []
-      if (!ids.length) return q.eq('id','none')
-      return q.in('id', ids)
-    })().then(({ data }) => { setObras(data??[]); setLoading(false) })
-  }, [])
+    async function fetchObras() {
+      const isAdmin = permissoes?.isAdmin ?? false
+      let q = supabase.from('obras').select('*').order('created_at', {ascending: false})
+      if (isAdmin) {
+        // Admin vê suas próprias obras
+        q = q.eq('owner_id', session.user.id)
+      } else {
+        // Usuário comum vê obras que tem permissão
+        const ids = permissoes?.obrasIds ?? []
+        if (!ids.length) { setObras([]); setLoading(false); return }
+        q = q.in('id', ids)
+      }
+      const { data } = await q
+      setObras(data ?? [])
+      setLoading(false)
+    }
+    if (!permissoes?.loading) fetchObras()
+  }, [permissoes?.isAdmin, permissoes?.loading, JSON.stringify(permissoes?.obrasIds)])
 
   if (!obra) return (
     <div style={{flex:1,padding:'28px',overflowY:'auto',color:'#E2E8F0',fontFamily:"'DM Sans', sans-serif"}}>
