@@ -65,16 +65,17 @@ export default function Sidebar({ active, onChange, userEmail, session }) {
       .from('user_profiles').select('role')
       .eq('user_id', session.user.id).maybeSingle()
 
-    if (!profile) { setPerms(new Set()); return }
+    if (!profile) { setPerms(new Set(['configuracoes'])); return }
     if (profile.role === 'admin') {
       setIsAdmin(true)
-      setPerms(new Set(ALL_MODULOS))
+      setPerms(new Set([...ALL_MODULOS, 'configuracoes']))
       return
     }
     const { data: p } = await supabase
       .from('user_permissoes').select('modulo')
       .eq('user_id', session.user.id).eq('pode_ver', true)
-    setPerms(new Set((p ?? []).map(x => x.modulo)))
+    // sempre inclui configuracoes para todos os usuários autenticados
+    setPerms(new Set([...(p ?? []).map(x => x.modulo), 'configuracoes']))
   }
 
   function canSee(item) {
