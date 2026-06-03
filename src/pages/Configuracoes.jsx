@@ -390,7 +390,7 @@ export default function Configuracoes({ session }) {
           </>
         )}
       </div>
-      </div> {/* fecha abaConfig === 'usuarios' */}
+      </div>
 
       {toast && (
         <div style={{
