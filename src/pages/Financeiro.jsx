@@ -818,24 +818,29 @@ function Boletos({ obra }) {
 
 // ── ORÇAMENTO (MO / MA) ───────────────────────────────────────────────────
 function Orcamento({ obra }) {
-  const [itens, setItens]     = useState([])
-  const [rows, setRows]       = useState([])
-  const [loading, setLoading] = useState(true)
-  const [toast, setToast]     = useState(null)
-  const [abaOrc, setAbaOrc]   = useState('lista') // lista | abc
+  const [itens,     setItens]     = useState([])
+  const [rows,      setRows]      = useState([])
+  const [contratos, setContratos] = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [toast,     setToast]     = useState(null)
+  const [abaOrc,    setAbaOrc]    = useState('lista')
 
   useEffect(() => { fetchItens() }, [obra.id])
 
   async function fetchItens() {
-    const { data } = await supabase.from('orcamento_itens').select('*').eq('obra_id', obra.id).order('ordem')
+    const [{ data }, { data: cts }] = await Promise.all([
+      supabase.from('orcamento_itens').select('*').eq('obra_id', obra.id).order('ordem'),
+      supabase.from('contratos').select('id,numero,descricao').eq('obra_id', obra.id).order('created_at'),
+    ])
     setItens(data??[])
+    setContratos(cts??[])
     setLoading(false)
   }
 
   useEffect(() => { setRows(itens.map(i=>({...i,isNew:false}))) }, [itens])
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null),3000) }
-  function newRow() { return {_tmp:Date.now(),obra_id:obra.id,descricao:'',categoria:'Geral',tipo:'MA',unidade:'un',quantidade:1,valor_unit:0,isNew:true} }
+  function newRow() { return {_tmp:Date.now(),obra_id:obra.id,descricao:'',categoria:'Geral',tipo:'MA',unidade:'un',quantidade:1,valor_unit:0,contrato_id:null,isNew:true} }
   function setRow(idx,k,v) { setRows(rs=>rs.map((r,i)=>i===idx?{...r,[k]:v}:r)) }
   function addRow() { setRows(rs=>[...rs,newRow()]) }
   async function removeRow(idx) {
@@ -846,7 +851,7 @@ function Orcamento({ obra }) {
 
   async function saveAll() {
     for (const r of rows) {
-      const payload = {obra_id:obra.id,descricao:r.descricao,categoria:r.categoria,tipo:r.tipo||'MA',unidade:r.unidade,quantidade:Number(r.quantidade),valor_unit:Number(r.valor_unit),ordem:rows.indexOf(r)}
+      const payload = {obra_id:obra.id,descricao:r.descricao,categoria:r.categoria,tipo:r.tipo||'MA',unidade:r.unidade,quantidade:Number(r.quantidade),valor_unit:Number(r.valor_unit),ordem:rows.indexOf(r),contrato_id:r.contrato_id||null}
       if (r.isNew) { if (r.descricao.trim()) await supabase.from('orcamento_itens').insert(payload) }
       else await supabase.from('orcamento_itens').update(payload).eq('id',r.id)
     }
@@ -1010,15 +1015,15 @@ function Orcamento({ obra }) {
 
       {abaOrc === 'abc' ? <CurvaABC itens={rows} /> : (
         <>
-          <div style={{display:'grid',gridTemplateColumns:'2fr 80px 1fr 60px 80px 100px 80px 28px',gap:8,padding:'0 4px',marginBottom:6}}>
-            {['Descrição','Tipo','Categoria','Un.','Qtde','Valor Unit.','Total',''].map((h,i)=>(
+          <div style={{display:'grid',gridTemplateColumns:'2fr 80px 1fr 60px 80px 100px 120px 80px 28px',gap:8,padding:'0 4px',marginBottom:6}}>
+            {['Descrição','Tipo','Categoria','Un.','Qtde','Valor Unit.','Contrato','Total',''].map((h,i)=>(
               <div key={i} style={{fontSize:10,fontWeight:700,color:'#334155',textTransform:'uppercase'}}>{h}</div>
             ))}
           </div>
           {loading ? <div style={{color:'#334155',fontSize:13,padding:'20px 0'}}>Carregando...</div>
           : rows.length === 0 ? <div style={{textAlign:'center',padding:'40px 0',color:'#334155',fontSize:13}}>Nenhum item. Adicione ou importe.</div>
           : rows.map((r,idx)=>(
-            <div key={r.id||r._tmp} style={{display:'grid',gridTemplateColumns:'2fr 80px 1fr 60px 80px 100px 80px 28px',gap:8,marginBottom:6}}>
+            <div key={r.id||r._tmp} style={{display:'grid',gridTemplateColumns:'2fr 80px 1fr 60px 80px 100px 120px 80px 28px',gap:8,marginBottom:6}}>
               <input style={{...inp,padding:'7px 10px'}} value={r.descricao} onChange={e=>setRow(idx,'descricao',e.target.value)} placeholder="Descrição" />
               <select style={{...inp,padding:'7px 6px',borderColor:r.tipo==='MO'?'#8B5CF660':'#3B82F660'}} value={r.tipo||'MA'} onChange={e=>setRow(idx,'tipo',e.target.value)}>
                 <option value="MA">MA</option>
@@ -1030,6 +1035,10 @@ function Orcamento({ obra }) {
               <input style={{...inp,padding:'7px 6px'}} value={r.unidade} onChange={e=>setRow(idx,'unidade',e.target.value)} />
               <input style={{...inp,padding:'7px 6px'}} type="number" min="0" value={r.quantidade} onChange={e=>setRow(idx,'quantidade',e.target.value)} />
               <input style={{...inp,padding:'7px 6px'}} type="number" min="0" step="0.01" value={r.valor_unit} onChange={e=>setRow(idx,'valor_unit',e.target.value)} />
+              <select style={{...inp,padding:'7px 6px',fontSize:11}} value={r.contrato_id||''} onChange={e=>setRow(idx,'contrato_id',e.target.value||null)}>
+                <option value="">—</option>
+                {contratos.map(c=><option key={c.id} value={c.id}>{c.numero||c.descricao.slice(0,20)}</option>)}
+              </select>
               <div style={{display:'flex',alignItems:'center',fontSize:12,fontWeight:600,color:'#10B981'}}>{fmtBRL(Number(r.quantidade||0)*Number(r.valor_unit||0))}</div>
               <button onClick={()=>removeRow(idx)} style={{background:'none',border:'none',color:'#475569',fontSize:16,cursor:'pointer',alignSelf:'center'}}>×</button>
             </div>
@@ -1043,38 +1052,85 @@ function Orcamento({ obra }) {
 
 // ── MEDIÇÕES ──────────────────────────────────────────────────────────────
 function Medicoes({ obra }) {
-  const [medicoes,  setMedicoes]  = useState([])
-  const [orcItens,  setOrcItens]  = useState([])
-  const [selected,  setSelected]  = useState(null)
-  const [medItens,  setMedItens]  = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [toast,     setToast]     = useState(null)
-  const [novaMed,   setNovaMed]   = useState(false)
-  const [novoMes,   setNovoMes]   = useState('')
-  const [novoDia,   setNovoDia]   = useState('25')
+  const [medicoes,   setMedicoes]   = useState([])
+  const [orcItens,   setOrcItens]   = useState([])
+  const [contratos,  setContratos]  = useState([])
+  const [selected,   setSelected]   = useState(null)
+  const [medItens,   setMedItens]   = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [toast,      setToast]      = useState(null)
+  const [novaMed,    setNovaMed]    = useState(false)
+  const [novoMes,    setNovoMes]    = useState('')
+  const [novoDia,    setNovoDia]    = useState('25')
+  const [novoNome,   setNovoNome]   = useState('')
+  const [novoContrato, setNovoContrato] = useState('')
 
   useEffect(() => { init() }, [obra.id])
 
   async function init() {
-    const [{ data: meds }, { data: orc }] = await Promise.all([
-      supabase.from('medicoes').select('*').eq('obra_id', obra.id).order('numero',{ascending:false}),
+    const [{ data: meds }, { data: orc }, { data: cts }] = await Promise.all([
+      supabase.from('medicoes').select('*, contratos(numero, descricao)').eq('obra_id', obra.id).order('numero',{ascending:false}),
       supabase.from('orcamento_itens').select('*').eq('obra_id', obra.id).order('ordem'),
+      supabase.from('contratos').select('id, numero, descricao, fornecedor_id, valor_total').eq('obra_id', obra.id).order('created_at'),
     ])
-    setMedicoes(meds??[]); setOrcItens(orc??[]); setLoading(false)
+    setMedicoes(meds??[]); setOrcItens(orc??[]); setContratos(cts??[]); setLoading(false)
   }
 
   function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null),3000) }
+
+  // Auto-gera número do contrato ao selecionar
+  function handleSelectContrato(contratoId) {
+    setNovoContrato(contratoId)
+    if (contratoId) {
+      const ct = contratos.find(c => c.id === contratoId)
+      if (ct && !novoNome) setNovoNome(ct.numero ? `${ct.numero} — ${ct.descricao}` : ct.descricao)
+    }
+  }
 
   async function criarMedicao() {
     if (!novoMes) return
     const num = (medicoes[0]?.numero??0)+1
     const dia = String(novoDia).padStart(2,'0')
     const mesRef = `${novoMes}-${dia}`
-    const { data } = await supabase.from('medicoes').insert({obra_id:obra.id,numero:num,mes_ref:mesRef,status:'rascunho'}).select().single()
-    if (data && orcItens.length) {
-      await supabase.from('medicao_itens').insert(orcItens.map(o=>({medicao_id:data.id,orcamento_item_id:o.id,descricao:o.descricao,categoria:o.categoria,tipo:o.tipo||'MA',qtd_prevista:o.quantidade,qtd_medida:0,valor_unit:o.valor_unit})))
+    const nome = novoNome.trim() || null
+
+    const { data } = await supabase.from('medicoes').insert({
+      obra_id:     obra.id,
+      numero:      num,
+      mes_ref:     mesRef,
+      status:      'rascunho',
+      nome:        nome,
+      contrato_id: novoContrato || null,
+    }).select().single()
+
+    if (data) {
+      // Filtra itens do orçamento pelo contrato selecionado (se houver)
+      let itensParaMedir = orcItens
+      if (novoContrato) {
+        const itensDoContrato = orcItens.filter(o => o.contrato_id === novoContrato)
+        // Se contrato tem itens vinculados, usa só eles; senão usa todos
+        if (itensDoContrato.length > 0) itensParaMedir = itensDoContrato
+      }
+
+      if (itensParaMedir.length) {
+        await supabase.from('medicao_itens').insert(
+          itensParaMedir.map(o => ({
+            medicao_id:         data.id,
+            orcamento_item_id:  o.id,
+            descricao:          o.descricao,
+            categoria:          o.categoria,
+            tipo:               o.tipo || 'MA',
+            qtd_prevista:       o.quantidade,
+            qtd_medida:         0,
+            valor_unit:         o.valor_unit,
+          }))
+        )
+      }
     }
-    setNovaMed(false); setNovoMes(''); await init(); showToast(`Medição ${num} criada!`)
+
+    setNovaMed(false); setNovoMes(''); setNovoNome(''); setNovoContrato('')
+    await init()
+    showToast(`Medição ${num} criada!`)
   }
 
   async function abrirMedicao(med) {
@@ -1086,7 +1142,7 @@ function Medicoes({ obra }) {
 
   async function saveMedicao() {
     for (const it of medItens) await supabase.from('medicao_itens').update({qtd_medida:Number(it.qtd_medida)}).eq('id',it.id)
-    showToast('Medição salva!')
+    showToast('✅ Medição salva!')
   }
 
   async function enviarMedicao() {
@@ -1145,8 +1201,16 @@ function Medicoes({ obra }) {
         <button onClick={()=>setSelected(null)} style={{background:'none',border:'1px solid #1E2235',borderRadius:7,color:'#64748B',fontSize:13,cursor:'pointer',padding:'5px 10px'}}>← Voltar</button>
         <div style={{flex:1}}>
           <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-            <span style={{fontSize:16,fontWeight:700,color:'#F1F5F9'}}>Medição {selected.numero} — {fmtMes(selected.mes_ref?.slice(0,7))}</span>
+            <span style={{fontSize:16,fontWeight:700,color:'#F1F5F9'}}>
+              {selected.nome || `Medição ${selected.numero}`}
+            </span>
             <span style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700,background:STATUS_MED[selected.status]?.bg,color:STATUS_MED[selected.status]?.color}}>{STATUS_MED[selected.status]?.label}</span>
+          </div>
+          <div style={{fontSize:12,color:'#475569',marginTop:2,display:'flex',gap:10,flexWrap:'wrap'}}>
+            <span>{fmtMes(selected.mes_ref?.slice(0,7))}</span>
+            {selected.contrato_id && contratos.find(c=>c.id===selected.contrato_id) && (
+              <span style={{color:'#3B82F6'}}>📃 {(() => { const c = contratos.find(x=>x.id===selected.contrato_id); return c?.numero ? `${c.numero} — ${c.descricao}` : c?.descricao })()}</span>
+            )}
           </div>
         </div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
@@ -1210,7 +1274,19 @@ function Medicoes({ obra }) {
 
       {novaMed && (
         <div style={{background:'#1A1D2E',border:'1px solid #1E3A5F',borderRadius:10,padding:'16px',marginBottom:16}}>
-          <div style={{display:'flex',gap:12,alignItems:'flex-end',flexWrap:'wrap'}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#F1F5F9',marginBottom:12}}>Nova Medição</div>
+          <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:12}}>
+            <div style={{flex:2,minWidth:160}}>
+              <label style={lbl}>Contrato (opcional)</label>
+              <select style={inp} value={novoContrato} onChange={e=>handleSelectContrato(e.target.value)}>
+                <option value="">Todos os itens do orçamento</option>
+                {contratos.map(c=>(
+                  <option key={c.id} value={c.id}>
+                    {c.numero ? `${c.numero} — ` : ''}{c.descricao} ({fmtBRL(c.valor_total)})
+                  </option>
+                ))}
+              </select>
+            </div>
             <div style={{flex:1,minWidth:140}}>
               <label style={lbl}>Mês de referência</label>
               <select style={inp} value={novoMes} onChange={e=>setNovoMes(e.target.value)}>
@@ -1223,16 +1299,30 @@ function Medicoes({ obra }) {
                 })}
               </select>
             </div>
-            <div style={{minWidth:120}}>
-              <label style={lbl}>Dia da medição</label>
+            <div style={{minWidth:100}}>
+              <label style={lbl}>Dia</label>
               <select style={inp} value={novoDia} onChange={e=>setNovoDia(e.target.value)}>
                 {[1,5,10,15,20,25,28,30].map(d=>(
-                  <option key={d} value={d}>Dia {d}{d===25?' (padrão)':''}</option>
+                  <option key={d} value={d}>Dia {d}{d===25?' ✓':''}</option>
                 ))}
               </select>
             </div>
-            <button onClick={criarMedicao} style={{padding:'8px 18px',borderRadius:7,border:'none',background:'#3B82F6',color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer',marginBottom:1}}>Criar</button>
-            <button onClick={()=>setNovaMed(false)} style={{padding:'8px 14px',borderRadius:7,border:'1px solid #1E2235',background:'transparent',color:'#64748B',fontWeight:600,fontSize:13,cursor:'pointer',marginBottom:1}}>Cancelar</button>
+          </div>
+          <div style={{marginBottom:12}}>
+            <label style={lbl}>Nome da medição (opcional)</label>
+            <input style={inp} value={novoNome} onChange={e=>setNovoNome(e.target.value)} placeholder="Ex: CT/323 — Piscina — ou deixe em branco para gerar automático" />
+          </div>
+          {novoContrato && (
+            <div style={{background:'#0F1117',borderRadius:8,padding:'8px 12px',marginBottom:12,fontSize:12,color:'#64748B'}}>
+              📋 Serão incluídos apenas os itens do orçamento vinculados a este contrato.
+              {orcItens.filter(o=>o.contrato_id===novoContrato).length === 0 && (
+                <span style={{color:'#F59E0B'}}> ⚠️ Nenhum item vinculado ainda — serão incluídos todos os itens.</span>
+              )}
+            </div>
+          )}
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={criarMedicao} disabled={!novoMes} style={{padding:'8px 18px',borderRadius:7,border:'none',background:novoMes?'#3B82F6':'#334155',color:'#fff',fontWeight:700,fontSize:13,cursor:novoMes?'pointer':'default'}}>Criar</button>
+            <button onClick={()=>{setNovaMed(false);setNovoMes('');setNovoNome('');setNovoContrato('')}} style={{padding:'8px 14px',borderRadius:7,border:'1px solid #1E2235',background:'transparent',color:'#64748B',fontWeight:600,fontSize:13,cursor:'pointer'}}>Cancelar</button>
           </div>
         </div>
       )}
@@ -1241,6 +1331,8 @@ function Medicoes({ obra }) {
       : medicoes.length===0 ? <div style={{textAlign:'center',padding:'40px 0',color:'#334155',fontSize:13}}>Nenhuma medição ainda. Clique em "+ Nova Medição".</div>
       : medicoes.map(m=>{
         const meta = STATUS_MED[m.status]
+        const nomeDisplay = m.nome || `Medição ${m.numero}`
+        const contratoLabel = m.contratos ? (m.contratos.numero ? `${m.contratos.numero} — ${m.contratos.descricao}` : m.contratos.descricao) : null
         return (
           <div key={m.id} onClick={()=>abrirMedicao(m)} style={{...card,marginBottom:8,cursor:'pointer',display:'flex',alignItems:'center',gap:16,transition:'border-color 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.borderColor='#334155'}
@@ -1248,8 +1340,11 @@ function Medicoes({ obra }) {
           >
             <div style={{width:40,height:40,borderRadius:8,background:'#1E3A5F',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'#93C5FD',flexShrink:0}}>{m.numero}</div>
             <div style={{flex:1}}>
-              <div style={{fontSize:14,fontWeight:600,color:'#F1F5F9'}}>Medição {m.numero}</div>
-              <div style={{fontSize:12,color:'#475569',marginTop:2}}>{fmtMes(m.mes_ref?.slice(0,7))}</div>
+              <div style={{fontSize:14,fontWeight:600,color:'#F1F5F9'}}>{nomeDisplay}</div>
+              <div style={{fontSize:12,color:'#475569',marginTop:2,display:'flex',gap:10,flexWrap:'wrap'}}>
+                <span>{fmtMes(m.mes_ref?.slice(0,7))}</span>
+                {contratoLabel && <span style={{color:'#3B82F6'}}>📃 {contratoLabel}</span>}
+              </div>
             </div>
             <span style={{padding:'3px 12px',borderRadius:20,fontSize:11,fontWeight:700,background:meta.bg,color:meta.color}}>{meta.label}</span>
             {m.status==='enviada' && (
@@ -1380,6 +1475,7 @@ function ContratoModal({ contrato, obraId, fornecedores: fornecedoresInit, onSav
   // Sync fornecedores when prop changes
   useEffect(() => { setFornecedores(fornecedoresInit ?? []) }, [fornecedoresInit?.length])
   const [form, setForm] = useState({
+    numero:         contrato?.numero         ?? '',
     descricao:      contrato?.descricao      ?? '',
     fornecedor_id:  contrato?.fornecedor_id  ?? '',
     valor_total:    contrato?.valor_total    ?? '',
@@ -1535,6 +1631,9 @@ function ContratoModal({ contrato, obraId, fornecedores: fornecedoresInit, onSav
             <a href={form.arquivo_url} target="_blank" rel="noreferrer" style={{fontSize:11,color:'#3B82F6',fontWeight:600,textDecoration:'none',flexShrink:0}}>Abrir</a>
           </div>
         )}
+
+        <label style={lbl}>Número do Contrato</label>
+        <input style={{...inp,marginBottom:14,fontFamily:'monospace',fontWeight:600}} value={form.numero} onChange={e=>setF('numero',e.target.value)} placeholder="Ex: CT/001" />
 
         <label style={lbl}>Descrição / Objeto do Contrato *</label>
         <input style={{...inp,marginBottom:14}} value={form.descricao} onChange={e=>setF('descricao',e.target.value)} placeholder="Ex: Execução de estrutura de concreto" />
@@ -1701,6 +1800,7 @@ function Contratos({ obra }) {
     }
     const payload = {
       obra_id:         obra.id,
+      numero:          form.numero || null,
       descricao:       form.descricao,
       objeto:          form.objeto,
       fornecedor_id:   form.fornecedor_id || null,
