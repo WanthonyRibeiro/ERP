@@ -35,14 +35,13 @@ export default function Configuracoes({ session }) {
   const [novoRole,   setNovoRole]   = useState('engenheiro')
   const [adding,     setAdding]     = useState(false)
   const [isAdmin,    setIsAdmin]    = useState(false)
-  const [abaConfig,  setAbaConfig]  = useState('conta') // começa em conta para todos
+  const [abaConfig,  setAbaConfig]  = useState('conta')
 
   // Minha conta
-  const [nomeEdit,    setNomeEdit]    = useState(session?.user?.user_metadata?.nome ?? '')
-  const [senhaAtual,  setSenhaAtual]  = useState('')
-  const [novaSenha,   setNovaSenha]   = useState('')
-  const [confSenha,   setConfSenha]   = useState('')
-  const [salvando,    setSalvando]    = useState(false)
+  const [nomeEdit,  setNomeEdit]  = useState(session?.user?.user_metadata?.nome ?? '')
+  const [novaSenha, setNovaSenha] = useState('')
+  const [confSenha, setConfSenha] = useState('')
+  const [salvando,  setSalvando]  = useState(false)
 
   useEffect(() => { init() }, [])
 
@@ -91,40 +90,21 @@ export default function Configuracoes({ session }) {
     setSalvando(true)
     const { error } = await supabase.auth.updateUser({ password: novaSenha })
     if (error) { showToast('Erro ao trocar senha: ' + error.message); setSalvando(false); return }
-    setSenhaAtual(''); setNovaSenha(''); setConfSenha('')
+    setNovaSenha(''); setConfSenha('')
     showToast('✅ Senha alterada com sucesso!')
     setSalvando(false)
   }
 
-  async function trocarSenhaUsuario(userId, novaSenhaAdmin) {
-    if (!novaSenhaAdmin || novaSenhaAdmin.length < 6) { showToast('⚠️ Senha deve ter pelo menos 6 caracteres.'); return }
-    const { error } = await supabase.rpc('admin_update_user_password', { uid: userId, new_password: novaSenhaAdmin })
-    if (error) { showToast('Erro: ' + error.message); return }
-    showToast('✅ Senha do usuário atualizada!')
-  }
-
   async function adicionarUsuario() {
     if (!novoEmail.trim()) return
-    // Busca o usuário pelo email
     const { data: users } = await supabase.rpc('get_user_by_email', { email: novoEmail.trim() })
     const userId = users?.[0]?.id
-
-    if (!userId) {
-      showToast('Usuário não encontrado. Certifique-se que ele já criou uma conta.')
-      return
-    }
-
-    // Cria perfil
+    if (!userId) { showToast('Usuário não encontrado. Certifique-se que ele já criou uma conta.'); return }
     const { error } = await supabase.from('user_profiles').upsert({
-      user_id:  userId,
-      admin_id: session.user.id,
-      role:     novoRole,
-      nome:     novoEmail.split('@')[0],
+      user_id: userId, admin_id: session.user.id, role: novoRole, nome: novoEmail.split('@')[0],
     })
-
     if (error) { showToast('Erro ao adicionar usuário.'); return }
-    setNovoEmail('')
-    setAdding(false)
+    setNovoEmail(''); setAdding(false)
     await init()
     showToast('Usuário adicionado!')
   }
@@ -152,11 +132,8 @@ export default function Configuracoes({ session }) {
       }
     } else {
       const payload = {
-        user_id: selected.user_id,
-        obra_id: obraId,
-        modulo,
-        pode_ver: tipo === 'pode_ver' ? true : false,
-        pode_editar: tipo === 'pode_editar' ? true : false,
+        user_id: selected.user_id, obra_id: obraId, modulo,
+        pode_ver: tipo === 'pode_ver', pode_editar: tipo === 'pode_editar',
       }
       const { data } = await supabase.from('user_permissoes').upsert(payload, { onConflict: 'user_id,obra_id,modulo' }).select().single()
       if (data) setPermissoes(ps => [...ps, data])
@@ -184,66 +161,44 @@ export default function Configuracoes({ session }) {
     </div>
   )
 
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", color: '#E2E8F0' }}>
+  // ── Aba Minha Conta ──────────────────────────────────────────────────────
+  const renderConta = (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '28px 24px', maxWidth: 480 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>Minha Conta</div>
+      <div style={{ fontSize: 12, color: '#475569', marginBottom: 24 }}>{session.user.email}</div>
 
-      {/* Tabs header */}
-      <div style={{ padding: '16px 24px 0', borderBottom: '1px solid #1E2235', display: 'flex', gap: 4, flexShrink: 0 }}>
-        {[
-          ...(isAdmin ? [{ id: 'usuarios', label: '👥 Usuários & Permissões' }] : []),
-          { id: 'conta', label: '👤 Minha Conta' },
-        ].map(a => (
-          <button key={a.id} onClick={() => setAbaConfig(a.id)} style={{
-            padding: '8px 16px', borderRadius: '7px 7px 0 0', border: 'none', cursor: 'pointer',
-            background: abaConfig === a.id ? '#0F1117' : 'transparent',
-            color: abaConfig === a.id ? '#F1F5F9' : '#475569',
-            fontSize: 13, fontWeight: abaConfig === a.id ? 600 : 400,
-            borderBottom: abaConfig === a.id ? '2px solid #3B82F6' : '2px solid transparent',
-          }}>{a.label}</button>
-        ))}
+      <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 12, padding: '20px', marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#F1F5F9', marginBottom: 16 }}>✏️ Nome de exibição</div>
+        <label style={lbl}>Nome</label>
+        <input style={{ ...inp, marginBottom: 16 }} value={nomeEdit} onChange={e => setNomeEdit(e.target.value)} placeholder="Seu nome completo" />
+        <button onClick={salvarNome} disabled={salvando} style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+          {salvando ? 'Salvando...' : 'Salvar nome'}
+        </button>
       </div>
 
-      {/* Aba Minha Conta */}
-      {abaConfig === 'conta' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '28px 24px', maxWidth: 480 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>Minha Conta</div>
-          <div style={{ fontSize: 12, color: '#475569', marginBottom: 24 }}>{session.user.email}</div>
+      <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 12, padding: '20px' }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#F1F5F9', marginBottom: 16 }}>🔒 Trocar senha</div>
+        <label style={lbl}>Nova senha</label>
+        <input style={{ ...inp, marginBottom: 12 }} type="password" value={novaSenha} onChange={e => setNovaSenha(e.target.value)} placeholder="Mínimo 6 caracteres" />
+        <label style={lbl}>Confirmar nova senha</label>
+        <input style={{ ...inp, marginBottom: 16 }} type="password" value={confSenha} onChange={e => setConfSenha(e.target.value)} placeholder="Repita a senha" />
+        {novaSenha && confSenha && novaSenha !== confSenha && (
+          <div style={{ fontSize: 12, color: '#EF4444', marginBottom: 10 }}>⚠️ As senhas não coincidem</div>
+        )}
+        <button onClick={trocarSenha} disabled={salvando || !novaSenha || novaSenha !== confSenha} style={{
+          padding: '8px 18px', borderRadius: 7, border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+          background: (novaSenha && novaSenha === confSenha) ? 'linear-gradient(135deg, #10B981, #059669)' : '#334155',
+          color: '#fff',
+        }}>
+          {salvando ? 'Salvando...' : 'Trocar senha'}
+        </button>
+      </div>
+    </div>
+  )
 
-          {/* Nome */}
-          <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 12, padding: '20px', marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#F1F5F9', marginBottom: 16 }}>✏️ Nome de exibição</div>
-            <label style={lbl}>Nome</label>
-            <input style={{ ...inp, marginBottom: 16 }} value={nomeEdit} onChange={e => setNomeEdit(e.target.value)} placeholder="Seu nome completo" />
-            <button onClick={salvarNome} disabled={salvando} style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-              {salvando ? 'Salvando...' : 'Salvar nome'}
-            </button>
-          </div>
-
-          {/* Senha */}
-          <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 12, padding: '20px' }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#F1F5F9', marginBottom: 16 }}>🔒 Trocar senha</div>
-            <label style={lbl}>Nova senha</label>
-            <input style={{ ...inp, marginBottom: 12 }} type="password" value={novaSenha} onChange={e => setNovaSenha(e.target.value)} placeholder="Mínimo 6 caracteres" />
-            <label style={lbl}>Confirmar nova senha</label>
-            <input style={{ ...inp, marginBottom: 16 }} type="password" value={confSenha} onChange={e => setConfSenha(e.target.value)} placeholder="Repita a senha" />
-            {novaSenha && confSenha && novaSenha !== confSenha && (
-              <div style={{ fontSize: 12, color: '#EF4444', marginBottom: 10 }}>⚠️ As senhas não coincidem</div>
-            )}
-            <button onClick={trocarSenha} disabled={salvando || !novaSenha || novaSenha !== confSenha} style={{
-              padding: '8px 18px', borderRadius: 7, border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer',
-              background: (novaSenha && novaSenha === confSenha) ? 'linear-gradient(135deg, #10B981, #059669)' : '#334155',
-              color: '#fff',
-            }}>
-              {salvando ? 'Salvando...' : 'Trocar senha'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Aba Usuários — só admin */}
-      {abaConfig === 'usuarios' && isAdmin && (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", color: '#E2E8F0' }}>
-
+  // ── Aba Usuários (admin only) ────────────────────────────────────────────
+  const renderUsuarios = (
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
       {/* Lista de usuários */}
       <div style={{ width: 280, flexShrink: 0, borderRight: '1px solid #1E2235', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid #1E2235' }}>
@@ -252,11 +207,8 @@ export default function Configuracoes({ session }) {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-          {/* Admin (você) — não aparece na lista abaixo */}
-          <div style={{
-            padding: '10px 12px', borderRadius: 8, marginBottom: 6,
-            background: '#1E3A5F', border: '1px solid #1E3A5F',
-          }}>
+          {/* Admin */}
+          <div style={{ padding: '10px 12px', borderRadius: 8, marginBottom: 6, background: '#1E3A5F', border: '1px solid #1E3A5F' }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#93C5FD' }}>
               {session.user.user_metadata?.nome ?? session.user.email}
             </div>
@@ -267,17 +219,14 @@ export default function Configuracoes({ session }) {
             const isSelected = selected?.user_id === u.user_id
             const role = ROLES[u.role] ?? ROLES.engenheiro
             return (
-              <div
-                key={u.user_id}
-                onClick={() => selectUsuario(u)}
-                style={{
-                  padding: '10px 12px', borderRadius: 8, marginBottom: 6,
-                  background: isSelected ? '#1A1D2E' : 'transparent',
-                  border: `1px solid ${isSelected ? '#334155' : 'transparent'}`,
-                  cursor: 'pointer', transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#1A1D2E' }}
-                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
+              <div key={u.user_id} onClick={() => selectUsuario(u)} style={{
+                padding: '10px 12px', borderRadius: 8, marginBottom: 6,
+                background: isSelected ? '#1A1D2E' : 'transparent',
+                border: `1px solid ${isSelected ? '#334155' : 'transparent'}`,
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#1A1D2E' }}
+              onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
               >
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#F1F5F9' }}>{u.nome}</div>
                 <div style={{ fontSize: 11, color: role.color, marginTop: 2 }}>{role.label}</div>
@@ -285,7 +234,6 @@ export default function Configuracoes({ session }) {
             )
           })}
 
-          {/* Adicionar usuário */}
           {adding ? (
             <div style={{ padding: '12px', background: '#1A1D2E', borderRadius: 8, border: '1px solid #1E2235' }}>
               <label style={lbl}>E-mail do usuário</label>
@@ -303,10 +251,8 @@ export default function Configuracoes({ session }) {
             </div>
           ) : (
             <button onClick={() => setAdding(true)} style={{
-              width: '100%', padding: '8px', borderRadius: 8,
-              border: '1px dashed #334155', background: 'transparent',
-              color: '#475569', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              marginTop: 4,
+              width: '100%', padding: '8px', borderRadius: 8, border: '1px dashed #334155',
+              background: 'transparent', color: '#475569', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginTop: 4,
             }}>+ Adicionar usuário</button>
           )}
         </div>
@@ -322,7 +268,6 @@ export default function Configuracoes({ session }) {
           </div>
         ) : (
           <>
-            {/* Header do usuário */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
               <div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>{selected.nome}</div>
@@ -343,7 +288,6 @@ export default function Configuracoes({ session }) {
               }}>Remover acesso</button>
             </div>
 
-            {/* Permissões por obra e módulo */}
             <div style={{ fontSize: 13, fontWeight: 600, color: '#94A3B8', marginBottom: 12 }}>
               Permissões por obra e módulo
             </div>
@@ -351,10 +295,7 @@ export default function Configuracoes({ session }) {
             {obras.length === 0 ? (
               <p style={{ color: '#334155', fontSize: 13 }}>Nenhuma obra cadastrada.</p>
             ) : obras.map(obra => (
-              <div key={obra.id} style={{
-                background: '#1A1D2E', border: '1px solid #1E2235',
-                borderRadius: 12, padding: '16px', marginBottom: 12,
-              }}>
+              <div key={obra.id} style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 12, padding: '16px', marginBottom: 12 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#F1F5F9', marginBottom: 12 }}>🏗️ {obra.nome}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 8 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: '#334155', textTransform: 'uppercase' }}>Módulo</div>
@@ -390,7 +331,30 @@ export default function Configuracoes({ session }) {
           </>
         )}
       </div>
+    </div>
+  )
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", color: '#E2E8F0' }}>
+
+      {/* Tabs */}
+      <div style={{ padding: '16px 24px 0', borderBottom: '1px solid #1E2235', display: 'flex', gap: 4, flexShrink: 0 }}>
+        {[
+          ...(isAdmin ? [{ id: 'usuarios', label: '👥 Usuários & Permissões' }] : []),
+          { id: 'conta', label: '👤 Minha Conta' },
+        ].map(a => (
+          <button key={a.id} onClick={() => setAbaConfig(a.id)} style={{
+            padding: '8px 16px', borderRadius: '7px 7px 0 0', border: 'none', cursor: 'pointer',
+            background: abaConfig === a.id ? '#0F1117' : 'transparent',
+            color: abaConfig === a.id ? '#F1F5F9' : '#475569',
+            fontSize: 13, fontWeight: abaConfig === a.id ? 600 : 400,
+            borderBottom: abaConfig === a.id ? '2px solid #3B82F6' : '2px solid transparent',
+          }}>{a.label}</button>
+        ))}
       </div>
+
+      {abaConfig === 'conta'    && renderConta}
+      {abaConfig === 'usuarios' && renderUsuarios}
 
       {toast && (
         <div style={{
