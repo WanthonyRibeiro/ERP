@@ -34,7 +34,8 @@ export default function Configuracoes({ session }) {
   const [novoEmail,  setNovoEmail]  = useState('')
   const [novoRole,   setNovoRole]   = useState('engenheiro')
   const [adding,     setAdding]     = useState(false)
-  const [abaConfig,  setAbaConfig]  = useState('usuarios') // usuarios | conta
+  const [isAdmin,    setIsAdmin]    = useState(false)
+  const [abaConfig,  setAbaConfig]  = useState('conta') // começa em conta para todos
 
   // Minha conta
   const [nomeEdit,    setNomeEdit]    = useState(session?.user?.user_metadata?.nome ?? '')
@@ -47,23 +48,24 @@ export default function Configuracoes({ session }) {
 
   async function init() {
     try {
-      const { data: profs, error: e1 } = await supabase
-        .from('user_profiles')
-        .select('id, user_id, admin_id, role, nome, ativo, created_at')
-        .eq('admin_id', session.user.id)
-      
-      if (e1) console.error('Erro user_profiles:', e1)
-      
-      const { data: obrasData, error: e2 } = await supabase
-        .from('obras')
-        .select('id, nome')
-        .eq('owner_id', session.user.id)
-        .order('nome')
-      
-      if (e2) console.error('Erro obras:', e2)
-      
-      setUsuarios(profs ?? [])
-      setObras(obrasData ?? [])
+      const { data: profile } = await supabase
+        .from('user_profiles').select('role')
+        .eq('user_id', session.user.id).maybeSingle()
+
+      const admin = !profile || profile.role === 'admin'
+      setIsAdmin(admin)
+      if (admin) setAbaConfig('usuarios')
+
+      if (admin) {
+        const { data: profs } = await supabase
+          .from('user_profiles').select('id, user_id, admin_id, role, nome, ativo, created_at')
+          .eq('admin_id', session.user.id)
+        const { data: obrasData } = await supabase
+          .from('obras').select('id, nome')
+          .eq('owner_id', session.user.id).order('nome')
+        setUsuarios(profs ?? [])
+        setObras(obrasData ?? [])
+      }
     } catch(err) {
       console.error('init error:', err)
     }
@@ -188,8 +190,8 @@ export default function Configuracoes({ session }) {
       {/* Tabs header */}
       <div style={{ padding: '16px 24px 0', borderBottom: '1px solid #1E2235', display: 'flex', gap: 4, flexShrink: 0 }}>
         {[
-          { id: 'usuarios', label: '👥 Usuários & Permissões' },
-          { id: 'conta',    label: '👤 Minha Conta' },
+          ...(isAdmin ? [{ id: 'usuarios', label: '👥 Usuários & Permissões' }] : []),
+          { id: 'conta', label: '👤 Minha Conta' },
         ].map(a => (
           <button key={a.id} onClick={() => setAbaConfig(a.id)} style={{
             padding: '8px 16px', borderRadius: '7px 7px 0 0', border: 'none', cursor: 'pointer',
@@ -238,8 +240,8 @@ export default function Configuracoes({ session }) {
         </div>
       )}
 
-      {/* Aba Usuários */}
-      {abaConfig === 'usuarios' && (
+      {/* Aba Usuários — só admin */}
+      {abaConfig === 'usuarios' && isAdmin && (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", color: '#E2E8F0' }}>
 
       {/* Lista de usuários */}

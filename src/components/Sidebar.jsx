@@ -44,7 +44,6 @@ const MENU = [
     icon: '⚙️',
     label: 'Configurações',
     modulo: 'configuracoes',
-    adminOnly: true,
   },
 ]
 
