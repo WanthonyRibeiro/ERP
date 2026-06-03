@@ -34,6 +34,14 @@ export default function Configuracoes({ session }) {
   const [novoEmail,  setNovoEmail]  = useState('')
   const [novoRole,   setNovoRole]   = useState('engenheiro')
   const [adding,     setAdding]     = useState(false)
+  const [abaConfig,  setAbaConfig]  = useState('usuarios') // usuarios | conta
+
+  // Minha conta
+  const [nomeEdit,    setNomeEdit]    = useState(session?.user?.user_metadata?.nome ?? '')
+  const [senhaAtual,  setSenhaAtual]  = useState('')
+  const [novaSenha,   setNovaSenha]   = useState('')
+  const [confSenha,   setConfSenha]   = useState('')
+  const [salvando,    setSalvando]    = useState(false)
 
   useEffect(() => { init() }, [])
 
@@ -63,6 +71,35 @@ export default function Configuracoes({ session }) {
   }
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 3000) }
+
+  async function salvarNome() {
+    if (!nomeEdit.trim()) return
+    setSalvando(true)
+    const { error } = await supabase.auth.updateUser({ data: { nome: nomeEdit.trim() } })
+    if (error) { showToast('Erro ao salvar nome.'); setSalvando(false); return }
+    await supabase.from('user_profiles').update({ nome: nomeEdit.trim() }).eq('user_id', session.user.id)
+    showToast('✅ Nome atualizado! Faça logout e login para ver.')
+    setSalvando(false)
+  }
+
+  async function trocarSenha() {
+    if (!novaSenha) return
+    if (novaSenha !== confSenha) { showToast('⚠️ As senhas não coincidem.'); return }
+    if (novaSenha.length < 6) { showToast('⚠️ Senha deve ter pelo menos 6 caracteres.'); return }
+    setSalvando(true)
+    const { error } = await supabase.auth.updateUser({ password: novaSenha })
+    if (error) { showToast('Erro ao trocar senha: ' + error.message); setSalvando(false); return }
+    setSenhaAtual(''); setNovaSenha(''); setConfSenha('')
+    showToast('✅ Senha alterada com sucesso!')
+    setSalvando(false)
+  }
+
+  async function trocarSenhaUsuario(userId, novaSenhaAdmin) {
+    if (!novaSenhaAdmin || novaSenhaAdmin.length < 6) { showToast('⚠️ Senha deve ter pelo menos 6 caracteres.'); return }
+    const { error } = await supabase.rpc('admin_update_user_password', { uid: userId, new_password: novaSenhaAdmin })
+    if (error) { showToast('Erro: ' + error.message); return }
+    showToast('✅ Senha do usuário atualizada!')
+  }
 
   async function adicionarUsuario() {
     if (!novoEmail.trim()) return
@@ -146,6 +183,63 @@ export default function Configuracoes({ session }) {
   )
 
   return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", color: '#E2E8F0' }}>
+
+      {/* Tabs header */}
+      <div style={{ padding: '16px 24px 0', borderBottom: '1px solid #1E2235', display: 'flex', gap: 4, flexShrink: 0 }}>
+        {[
+          { id: 'usuarios', label: '👥 Usuários & Permissões' },
+          { id: 'conta',    label: '👤 Minha Conta' },
+        ].map(a => (
+          <button key={a.id} onClick={() => setAbaConfig(a.id)} style={{
+            padding: '8px 16px', borderRadius: '7px 7px 0 0', border: 'none', cursor: 'pointer',
+            background: abaConfig === a.id ? '#0F1117' : 'transparent',
+            color: abaConfig === a.id ? '#F1F5F9' : '#475569',
+            fontSize: 13, fontWeight: abaConfig === a.id ? 600 : 400,
+            borderBottom: abaConfig === a.id ? '2px solid #3B82F6' : '2px solid transparent',
+          }}>{a.label}</button>
+        ))}
+      </div>
+
+      {/* Aba Minha Conta */}
+      {abaConfig === 'conta' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '28px 24px', maxWidth: 480 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>Minha Conta</div>
+          <div style={{ fontSize: 12, color: '#475569', marginBottom: 24 }}>{session.user.email}</div>
+
+          {/* Nome */}
+          <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 12, padding: '20px', marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#F1F5F9', marginBottom: 16 }}>✏️ Nome de exibição</div>
+            <label style={lbl}>Nome</label>
+            <input style={{ ...inp, marginBottom: 16 }} value={nomeEdit} onChange={e => setNomeEdit(e.target.value)} placeholder="Seu nome completo" />
+            <button onClick={salvarNome} disabled={salvando} style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              {salvando ? 'Salvando...' : 'Salvar nome'}
+            </button>
+          </div>
+
+          {/* Senha */}
+          <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 12, padding: '20px' }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#F1F5F9', marginBottom: 16 }}>🔒 Trocar senha</div>
+            <label style={lbl}>Nova senha</label>
+            <input style={{ ...inp, marginBottom: 12 }} type="password" value={novaSenha} onChange={e => setNovaSenha(e.target.value)} placeholder="Mínimo 6 caracteres" />
+            <label style={lbl}>Confirmar nova senha</label>
+            <input style={{ ...inp, marginBottom: 16 }} type="password" value={confSenha} onChange={e => setConfSenha(e.target.value)} placeholder="Repita a senha" />
+            {novaSenha && confSenha && novaSenha !== confSenha && (
+              <div style={{ fontSize: 12, color: '#EF4444', marginBottom: 10 }}>⚠️ As senhas não coincidem</div>
+            )}
+            <button onClick={trocarSenha} disabled={salvando || !novaSenha || novaSenha !== confSenha} style={{
+              padding: '8px 18px', borderRadius: 7, border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              background: (novaSenha && novaSenha === confSenha) ? 'linear-gradient(135deg, #10B981, #059669)' : '#334155',
+              color: '#fff',
+            }}>
+              {salvando ? 'Salvando...' : 'Trocar senha'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Aba Usuários */}
+      {abaConfig === 'usuarios' && (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", color: '#E2E8F0' }}>
 
       {/* Lista de usuários */}
@@ -156,7 +250,7 @@ export default function Configuracoes({ session }) {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-          {/* Admin (você) — não aparece na lista abaixo */}
+          {/* Admin (você) — não aparece na lista abaixo */
           <div style={{
             padding: '10px 12px', borderRadius: 8, marginBottom: 6,
             background: '#1E3A5F', border: '1px solid #1E3A5F',
@@ -294,6 +388,7 @@ export default function Configuracoes({ session }) {
           </>
         )}
       </div>
+      </div> {/* fecha abaConfig === 'usuarios' */}
 
       {toast && (
         <div style={{
