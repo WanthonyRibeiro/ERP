@@ -873,28 +873,29 @@ function Orcamento({ obra }) {
       let lastDesc = ''
       let ordem = 0
       for (const row of raw) {
-        const colB = row[1] // Descrição
-        const colC = row[2] // M.O ou Material
-        const colG = row[6] // Custo
+        const colB = row[1]
+        const colC = row[2]
+        const colG = row[6]
 
-        // Nova descrição
-        if (colB && typeof colB === 'string' && colB.trim() &&
-            colC !== 'M.O' && colC !== 'Material' && colB.trim() !== 'DESCRIÇÃO') {
+        // Ignora linhas de cabeçalho
+        if (colB === 'DESCRIÇÃO' || (typeof colB === 'string' && colB.includes('CRONOGRAMA'))) continue
+
+        // Linha de Material — tem descrição em colB e tipo em colC
+        if (colC === 'Material' && colB && typeof colB === 'string' && colB.trim()) {
           lastDesc = colB.trim()
         }
 
-        // Linha de MO ou Material
+        // Linha de MO — colB é null, tipo em colC, descrição vem da linha anterior
         const tipo = colC === 'M.O' ? 'MO' : colC === 'Material' ? 'MA' : null
         if (!tipo || !lastDesc) continue
 
-        // Resolve fórmulas simples como "=7000-400" ou "=3*2790.75"
+        // Resolve valor — pode ser número, fórmula string, ou null
         let valor = 0
         if (typeof colG === 'number') {
           valor = colG
         } else if (typeof colG === 'string' && colG.startsWith('=')) {
           try {
-            // Avalia expressão simples: só números, +, -, *, /
-            const expr = colG.slice(1).replace(/[^0-9+\-*/.]/g, '')
+            const expr = colG.slice(1).replace(/[^0-9+\-*/.()]/g, '')
             valor = expr ? Function(`"use strict"; return (${expr})`)() : 0
           } catch { valor = 0 }
         }
@@ -907,7 +908,7 @@ function Orcamento({ obra }) {
             tipo,
             unidade:    'vb',
             quantidade: 1,
-            valor_unit: valor,
+            valor_unit: Number(valor.toFixed(2)),
             ordem:      ordem++,
           })
         }
