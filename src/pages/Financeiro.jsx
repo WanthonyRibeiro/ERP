@@ -857,53 +857,103 @@ function Orcamento({ obra }) {
   async function handleImport(e) {
     const file = e.target.files[0]; if (!file) return
     const buf = await file.arrayBuffer()
-    const wb  = XLSX.read(buf,{cellDates:true})
+    const wb  = XLSX.read(buf, { cellDates: true })
     const ws  = wb.Sheets[wb.SheetNames[0]]
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null })
 
-    // Tenta detectar formato Cronograma Físico/Financeiro (MO/Material por linha)
-    const raw = XLSX.utils.sheet_to_json(ws,{header:1,raw:false})
     let toInsert = []
 
-    // Verifica se é o formato da planilha de cronograma (col B=descrição, col C=MO/Material, col D=valor)
-    const isCronFormat = raw.some(r => r[2]==='M.O' || r[2]==='Material' || r[1]==='M.O' || r[1]==='Material')
+    // Detecta formato Cronograma Físico/Financeiro
+    // Col B = descrição, Col C = M.O ou Material, Col G = custo
+    const isCronFormat = raw.slice(0,5).some(r =>
+      (r[2]==='M.O' || r[2]==='Material' || r[1]==='M.O' || r[1]==='Material')
+    )
 
     if (isCronFormat) {
       let lastDesc = ''
+      let ordem = 0
       for (const row of raw) {
-        const col1 = String(row[0]||'').trim()
-        const col2 = String(row[1]||'').trim() // M.O ou Material
-        const col3 = String(row[2]||'').trim()
-        const valRaw = col3 || String(row[3]||'').trim()
-        const val = Number(String(valRaw).replace(/[^0-9.,]/g,'').replace(',','.'))
-        if (col1 && col1 !== 'M.O' && col1 !== 'Material') lastDesc = col1
-        if ((col2==='M.O'||col2==='Material'||col1==='M.O'||col1==='Material') && lastDesc) {
-          const tipo = (col2==='M.O'||col1==='M.O') ? 'MO' : 'MA'
-          if (val > 0) toInsert.push({obra_id:obra.id,descricao:lastDesc,categoria:'Geral',tipo,unidade:'vb',quantidade:1,valor_unit:val,ordem:toInsert.length})
+        const colB = row[1] // Descrição
+        const colC = row[2] // M.O ou Material
+        const colG = row[6] // Custo
+
+        // Nova descrição
+        if (colB && typeof colB === 'string' && colB.trim() &&
+            colC !== 'M.O' && colC !== 'Material' && colB.trim() !== 'DESCRIÇÃO') {
+          lastDesc = colB.trim()
+        }
+
+        // Linha de MO ou Material
+        const tipo = colC === 'M.O' ? 'MO' : colC === 'Material' ? 'MA' : null
+        if (!tipo || !lastDesc) continue
+
+        // Resolve fórmulas simples como "=7000-400" ou "=3*2790.75"
+        let valor = 0
+        if (typeof colG === 'number') {
+          valor = colG
+        } else if (typeof colG === 'string' && colG.startsWith('=')) {
+          try {
+            // Avalia expressão simples: só números, +, -, *, /
+            const expr = colG.slice(1).replace(/[^0-9+\-*/.]/g, '')
+            valor = expr ? Function(`"use strict"; return (${expr})`)() : 0
+          } catch { valor = 0 }
+        }
+
+        if (valor > 0) {
+          toInsert.push({
+            obra_id:    obra.id,
+            descricao:  lastDesc,
+            categoria:  inferCategoria(lastDesc),
+            tipo,
+            unidade:    'vb',
+            quantidade: 1,
+            valor_unit: valor,
+            ordem:      ordem++,
+          })
         }
       }
-    }
-
-    // Fallback: formato padrão
-    if (!toInsert.length) {
-      const data = XLSX.utils.sheet_to_json(ws,{raw:false,dateNF:'yyyy-mm-dd'})
-      toInsert = data.filter(r=>r['Descrição']||r['Descricao']||r['descricao']).map((r,idx)=>({
-        obra_id:obra.id,
-        descricao: r['Descrição']||r['Descricao']||r['descricao']||'',
-        categoria: r['Categoria']||r['categoria']||'Geral',
-        tipo:      r['Tipo']||r['tipo']||'MA',
-        unidade:   r['Unidade']||r['unidade']||'un',
-        quantidade:Number(r['Quantidade']||r['quantidade']||1),
-        valor_unit:Number(String(r['Valor Unit']||r['Valor Unitário']||r['valor_unit']||0).replace(/[^0-9.,]/g,'').replace(',','.')),
-        ordem:idx,
-      }))
+    } else {
+      // Formato padrão com cabeçalho
+      const data = XLSX.utils.sheet_to_json(ws, { raw: false, dateNF: 'yyyy-mm-dd' })
+      toInsert = data
+        .filter(r => r['Descrição'] || r['Descricao'] || r['descricao'] || r['Item'] || r['item'])
+        .map((r, idx) => ({
+          obra_id:    obra.id,
+          descricao:  r['Descrição'] || r['Descricao'] || r['descricao'] || r['Item'] || r['item'] || '',
+          categoria:  r['Categoria'] || r['categoria'] || 'Geral',
+          tipo:       r['Tipo'] || r['tipo'] || 'MA',
+          unidade:    r['Unidade'] || r['unidade'] || 'un',
+          quantidade: Number(r['Quantidade'] || r['quantidade'] || 1),
+          valor_unit: Number(String(r['Valor Unit'] || r['Valor Unitário'] || r['valor_unit'] || 0).replace(/[^0-9.,]/g, '').replace(',', '.')),
+          ordem:      idx,
+        }))
     }
 
     if (toInsert.length) {
       await supabase.from('orcamento_itens').insert(toInsert)
       await fetchItens()
       showToast(`${toInsert.length} itens importados!`)
-    } else { showToast('Nenhum item encontrado.') }
+    } else {
+      showToast('Nenhum item encontrado. Verifique o formato.')
+    }
     e.target.value = ''
+  }
+
+  // Infere categoria pelo nome da descrição
+  function inferCategoria(desc) {
+    const d = desc.toLowerCase()
+    if (d.includes('gesso'))          return 'Gesso'
+    if (d.includes('pintura'))        return 'Pintura'
+    if (d.includes('porcelanato'))    return 'Porcelanato'
+    if (d.includes('vinílico') || d.includes('vinilico')) return 'Vinílico'
+    if (d.includes('elétric') || d.includes('eletric') || d.includes('telecom')) return 'Elétrica'
+    if (d.includes('encanador') || d.includes('hidráulic') || d.includes('hidraulic')) return 'Hidráulica'
+    if (d.includes('esquadria'))      return 'Esquadrias'
+    if (d.includes('impermeabil'))    return 'Acabamento'
+    if (d.includes('piso') || d.includes('pórtico') || d.includes('portico')) return 'Acabamento'
+    if (d.includes('ppci'))           return 'Instalações'
+    if (d.includes('andaime') || d.includes('tamborville')) return 'Equipamentos'
+    return 'Geral'
   }
 
   function handleExport() {
@@ -1060,6 +1110,20 @@ function Medicoes({ obra }) {
     showToast('Medição rejeitada.')
   }
 
+  async function excluirMedicao(id, status) {
+    if (status === 'aprovada') {
+      // Somente admin pode excluir medição aprovada — por ora bloqueia
+      showToast('⛔ Medições aprovadas só podem ser excluídas pelo administrador.')
+      return
+    }
+    if (!confirm('Excluir esta medição? Esta ação não pode ser desfeita.')) return
+    await supabase.from('medicao_itens').delete().eq('medicao_id', id)
+    await supabase.from('medicoes').delete().eq('id', id)
+    setSelected(null)
+    await init()
+    showToast('Medição excluída.')
+  }
+
   async function exportarRelatorio(med) {
     const { data: its } = await supabase.from('medicao_itens').select('*').eq('medicao_id',med.id)
     const data = (its??[]).map(it=>({'Descrição':it.descricao,'Tipo':it.tipo||'MA','Categoria':it.categoria,'Qtde Prevista':it.qtd_prevista,'Qtde Medida':it.qtd_medida,'Valor Unit':it.valor_unit,'Total Previsto':(Number(it.qtd_prevista||0)*Number(it.valor_unit||0)).toFixed(2),'Total Medido':(Number(it.qtd_medida||0)*Number(it.valor_unit||0)).toFixed(2)}))
@@ -1090,6 +1154,9 @@ function Medicoes({ obra }) {
           {selected.status==='enviada'  && <button onClick={()=>rejeitarMedicao(selected.id)} style={{padding:'7px 16px',borderRadius:7,border:'1px solid #991B1B',background:'transparent',color:'#FCA5A5',fontWeight:600,fontSize:12,cursor:'pointer'}}>✕ Rejeitar</button>}
           {selected.status==='rascunho' && <button onClick={saveMedicao} style={{padding:'7px 16px',borderRadius:7,border:'none',background:'linear-gradient(135deg,#3B82F6,#6366F1)',color:'#fff',fontWeight:700,fontSize:12,cursor:'pointer'}}>Salvar</button>}
           <button onClick={()=>exportarRelatorio(selected)} style={{padding:'7px 14px',borderRadius:7,border:'1px solid #1E2235',background:'transparent',color:'#94A3B8',fontWeight:600,fontSize:12,cursor:'pointer'}}>↓ Exportar</button>
+          {(selected.status==='rascunho'||selected.status==='rejeitada') && (
+            <button onClick={()=>excluirMedicao(selected.id, selected.status)} style={{padding:'7px 14px',borderRadius:7,border:'1px solid #991B1B',background:'transparent',color:'#FCA5A5',fontWeight:600,fontSize:12,cursor:'pointer'}}>🗑 Excluir</button>
+          )}
         </div>
       </div>
 
