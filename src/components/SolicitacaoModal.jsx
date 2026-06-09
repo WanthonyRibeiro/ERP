@@ -293,8 +293,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                       onMouseLeave={e => e.currentTarget.style.borderColor = '#1E2235'}
                     >
                       <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>G.A.</div>
-                      <div style={{ fontSize: 11, color: '#475569' }}>Gestão Administrativa</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>Gestão Administrativa</div>
                       <div style={{ fontSize: 10, color: '#334155', marginTop: 6 }}>ART, projetos, honorários,<br/>colaboradores, taxas...</div>
                     </button>
                     <button onClick={() => setF('gestao', 'GE')} style={{
@@ -306,8 +305,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                       onMouseLeave={e => e.currentTarget.style.borderColor = '#1E2235'}
                     >
                       <div style={{ fontSize: 28, marginBottom: 8 }}>🏗️</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>G.E.</div>
-                      <div style={{ fontSize: 11, color: '#475569' }}>Gestão Executiva</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>Gestão Executiva</div>
                       <div style={{ fontSize: 10, color: '#334155', marginTop: 6 }}>Materiais, equipamentos,<br/>serviços de obra...</div>
                     </button>
                   </div>
@@ -321,7 +319,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                         padding: '3px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700,
                         background: form.gestao === 'GA' ? '#1E3A5F' : '#064E3B',
                         color: form.gestao === 'GA' ? '#93C5FD' : '#6EE7B7',
-                      }}>{form.gestao === 'GA' ? '📋 G.A. — Gestão Administrativa' : '🏗️ G.E. — Gestão Executiva'}</span>
+                      }}>{form.gestao === 'GA' ? '📋 Gestão Administrativa' : '🏗️ Gestão Executiva'}</span>
                       {isNew && (
                         <button onClick={() => setF('gestao', '')} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}>trocar</button>
                       )}
