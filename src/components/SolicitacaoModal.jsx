@@ -205,8 +205,6 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
 
   function handleSave(statusOverride) {
     if (!form.titulo || !form.obra_id || !form.gestao) return
-    console.log('🔍 handleSave items:', items)
-    console.log('🔍 itens filtrados:', items.filter(i => i.descricao?.trim()))
     onSave({
       ...solicitacao,
       ...form,
@@ -446,8 +444,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                               setShowInsumoSearch(it.id)
                             }
                           }}
-                          onBlur={() => setTimeout(() => setShowInsumoSearch(null), 400)}
-                          placeholder="Material ou serviço"
+                          onBlur={() => setTimeout(() => setShowInsumoSearch(null), 400)}                          placeholder="Material ou serviço"
                         />
                         {form.gestao && !locked && (
                           <button
@@ -458,18 +455,19 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                       </div>
                       {/* Dropdown de insumos */}
                       {showInsumoSearch === it.id && insumos.length > 0 && (
-                        <div style={{
-                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-                          background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 8,
-                          boxShadow: '0 8px 24px #00000080', maxHeight: 220, overflowY: 'auto',
-                        }}>
+                        <div
+                          onMouseDown={e => e.preventDefault()}
+                          style={{
+                            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                            background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 8,
+                            boxShadow: '0 8px 24px #00000080', maxHeight: 220, overflowY: 'auto',
+                          }}>
                           <div style={{ padding: '8px 10px', borderBottom: '1px solid #1E2235' }}>
                             <input
                               style={{ ...inp, fontSize: 12, padding: '5px 8px' }}
                               placeholder="Buscar insumo..."
                               value={insumoSearch}
                               onChange={e => setInsumoSearch(e.target.value)}
-                              autoFocus
                             />
                           </div>
                           {insumosFiltrados.length === 0 ? (
@@ -477,7 +475,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                           ) : insumosFiltrados.slice(0, 20).map(ins => (
                             <div
                               key={ins.id}
-                              onClick={() => aplicarInsumo(it.id, ins)}
+                              onMouseDown={() => aplicarInsumo(it.id, ins)}
                               style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #161929' }}
                               onMouseEnter={e => e.currentTarget.style.background = '#0F1117'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -495,7 +493,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                             </div>
                           ))}
                           <div
-                            onClick={() => { setShowInsumoSearch(null); setInsumoSearch('') }}
+                            onMouseDown={() => { setShowInsumoSearch(null); setInsumoSearch('') }}
                             style={{ padding: '8px 12px', fontSize: 11, color: '#334155', cursor: 'pointer', textAlign: 'center' }}
                           >Digitar manualmente</div>
                         </div>
