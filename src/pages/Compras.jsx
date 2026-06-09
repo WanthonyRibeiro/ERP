@@ -151,7 +151,7 @@ export default function Compras({ session, permissoes }) {
     else await registrarHistorico(targetId, 'editada', userName)
 
     setModal(null)
-    fetchSolicitacoes()
+    setTimeout(() => fetchSolicitacoes(), 500)
     showToast(solId ? 'Solicitação atualizada!' : 'Solicitação criada!')
   }
 
