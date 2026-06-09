@@ -227,13 +227,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
 
   return (
     <div
-      onClick={e => {
-        if (e.target !== e.currentTarget) return
-        if (items.some(i => i.descricao?.trim()) || form.titulo) {
-          if (!confirm('Tem certeza que deseja fechar? As alterações não salvas serão perdidas.')) return
-        }
-        onClose()
-      }}
+      onClick={e => e.target === e.currentTarget && onClose()}
       style={{
         position: 'fixed', inset: 0, background: '#00000095',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
