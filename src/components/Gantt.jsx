@@ -4,7 +4,7 @@ export const CATEGORY_COLORS = {
   'ESTRUTURA DE CONCRETO': '#3B82F6',
   'ALVENARIA':             '#F59E0B',
   'HIDRÁULICA':            '#06B6D4',
-  'ELÉTRICA':              '#F59E0B',
+  'ELÉTRICA':              '#FBBF24',
   'ESQUADRIAS':            '#8B5CF6',
   'REVESTIMENTO':          '#10B981',
   'PINTURA':               '#EC4899',
@@ -16,6 +16,40 @@ export const CATEGORY_COLORS = {
   Porcelanato: '#3B82F6', Instalações: '#8B5CF6', Vinílico: '#10B981',
   Esquadrias:  '#8B5CF6', Gesso:       '#6366F1', Pintura:  '#EC4899',
   Acabamento:  '#14B8A6', Geral:       '#64748B',
+}
+
+// Cores por prefixo de disciplina (3 letras antes do -)
+const PREFIXO_COLORS = {
+  EST: '#3B82F6', // Estrutura — azul
+  DES: '#60A5FA', // Desforma — azul claro
+  ALV: '#F59E0B', // Alvenaria — âmbar
+  HID: '#06B6D4', // Hidráulica — ciano
+  ELE: '#FBBF24', // Elétrica — amarelo
+  ELV: '#A78BFA', // Elevador — roxo claro
+  IMP: '#0EA5E9', // Impermeabilização — azul céu
+  REB: '#10B981', // Reboco — verde
+  CNP: '#34D399', // Contrapiso — verde claro
+  FOR: '#6EE7B7', // Forro — menta
+  PCI: '#EF4444', // Prevenção Incêndio — vermelho
+  HAL: '#F97316', // Hall — laranja
+  CLI: '#8B5CF6', // Climatização — roxo
+  EXT: '#EC4899', // Externo — rosa
+  PXT: '#F472B6', // Porcelanato externo — rosa claro
+  LMT: '#14B8A6', // Limpeza — teal
+  PIN: '#EC4899', // Pintura — rosa
+  POR: '#A16207', // Porcelanato — marrom
+  VID: '#67E8F9', // Vidro — ciano claro
+  ACM: '#94A3B8', // ACM — cinza
+  ESQ: '#C084FC', // Esquadrias — lilás
+  COB: '#EF4444', // Cobertura — vermelho
+  AXT: '#84CC16', // Área externa — verde lima
+  FIN: '#F1F5F9', // Finalização — branco
+}
+
+export function getPrefixoColor(label) {
+  if (!label) return '#475569'
+  const pref = label.split('-')[0].trim().substring(0, 3).toUpperCase()
+  return PREFIXO_COLORS[pref] ?? '#475569'
 }
 
 const PALETTE = ['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EF4444','#06B6D4','#EC4899','#6366F1','#14B8A6','#A16207','#0EA5E9','#84CC16']
@@ -145,7 +179,7 @@ export default function Gantt({ tasks, onTaskClick, filter, pavimentoFilter = 'T
         <div style={{ width: LABEL_W, flexShrink: 0, borderRight: '1px solid #1E2235' }}>
           <div style={{ height: 48, borderBottom: '1px solid #1E2235', background: '#0D1020' }} />
           {displayed.map((task, i) => {
-            const col = getCategoryColor(task.category)
+            const col = getPrefixoColor(task.label)
             const pav = extrairPavimento(task.label)
             return (
               <div
@@ -160,7 +194,8 @@ export default function Gantt({ tasks, onTaskClick, filter, pavimentoFilter = 'T
                 onMouseEnter={e => e.currentTarget.style.background = '#1A1D2E'}
                 onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? '#0F1117' : '#0D1020'}
               >
-                <div style={{ width: 7, height: 7, borderRadius: 2, background: col, flexShrink: 0 }} />
+                {/* Faixa colorida por disciplina */}
+                <div style={{ width: 3, height: ROW_H - 8, borderRadius: 2, background: col, flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 11.5, color: '#94A3B8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {task.label}
@@ -211,10 +246,24 @@ export default function Gantt({ tasks, onTaskClick, filter, pavimentoFilter = 'T
               })}
             </div>
 
-            {/* SVG layer para setas de dependência */}
-            <svg
-              style={{ position: 'absolute', top: 48, left: 0, width: totalDays * COL_W, height: displayed.length * ROW_H, pointerEvents: 'none', zIndex: 5 }}
-            >
+            {/* SVG — setas de dependência estilo MS Project (linhas retas em L) */}
+            <svg style={{
+              position: 'absolute', top: 48, left: 0,
+              width: totalDays * COL_W, height: displayed.length * ROW_H,
+              pointerEvents: 'none', zIndex: 5, overflow: 'visible',
+            }}>
+              <defs>
+                {/* Marcador de seta por cor de disciplina */}
+                {Object.entries(PREFIXO_COLORS).map(([pref, color]) => (
+                  <marker key={pref} id={`arrow-${pref}`} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L6,3 z" fill={color} opacity="0.7" />
+                  </marker>
+                ))}
+                <marker id="arrow-default" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L6,3 z" fill="#475569" opacity="0.7" />
+                </marker>
+              </defs>
+
               {displayed.map((task) => {
                 if (!task.predecessora_id) return null
                 const predIdx = taskIndexMap[task.predecessora_id]
@@ -222,28 +271,45 @@ export default function Gantt({ tasks, onTaskClick, filter, pavimentoFilter = 'T
                 if (predIdx === undefined || succIdx === undefined) return null
 
                 const pred = displayed[predIdx]
-                const predEndDay = Math.round((parseDate(pred.end_date) - projStart) / DAY_MS)
+                const predEndDay  = Math.round((parseDate(pred.end_date)   - projStart) / DAY_MS)
                 const succStartDay = Math.round((parseDate(task.start_date) - projStart) / DAY_MS)
 
-                const x1 = (predEndDay + 1) * COL_W
-                const y1 = predIdx * ROW_H + ROW_H / 2
-                const x2 = succStartDay * COL_W
-                const y2 = succIdx * ROW_H + ROW_H / 2
+                // Pontos de origem e destino
+                const x1 = (predEndDay + 1) * COL_W      // fim da barra predecessora
+                const y1 = predIdx * ROW_H + ROW_H / 2   // centro vertical da predecessora
+                const x2 = succStartDay * COL_W           // início da barra sucessora
+                const y2 = succIdx * ROW_H + ROW_H / 2   // centro vertical da sucessora
 
-                const midX = (x1 + x2) / 2
+                // Cor da seta = cor da predecessora
+                const pref = pred.label.split('-')[0].trim().substring(0, 3).toUpperCase()
+                const color = PREFIXO_COLORS[pref] ?? '#475569'
+                const markerId = PREFIXO_COLORS[pref] ? `arrow-${pref}` : 'arrow-default'
+
+                // Roteamento em L estilo MS Project:
+                // Linha horizontal → linha vertical → linha horizontal até destino
+                const offset = 8 // recuo horizontal antes de virar
+                let d
+
+                if (x2 > x1 + offset * 2) {
+                  // Sucessora à direita — caminho simples em S
+                  const midX = x1 + offset
+                  d = `M ${x1} ${y1} H ${midX} V ${y2} H ${x2}`
+                } else {
+                  // Sucessora à esquerda ou muito próxima — desce, vai pra esquerda, sobe
+                  const dropY = Math.max(y1, y2) + ROW_H * 0.4
+                  d = `M ${x1} ${y1} H ${x1 + offset} V ${dropY} H ${x2 - offset} V ${y2} H ${x2}`
+                }
 
                 return (
-                  <g key={`dep-${task.id}`}>
-                    <path
-                      d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
-                      fill="none" stroke="#3B82F666" strokeWidth={1.5} strokeDasharray="4 3"
-                    />
-                    {/* Seta */}
-                    <polygon
-                      points={`${x2},${y2} ${x2-6},${y2-4} ${x2-6},${y2+4}`}
-                      fill="#3B82F666"
-                    />
-                  </g>
+                  <path
+                    key={`dep-${task.id}`}
+                    d={d}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={1.2}
+                    strokeOpacity={0.55}
+                    markerEnd={`url(#${markerId})`}
+                  />
                 )
               })}
             </svg>
@@ -254,7 +320,7 @@ export default function Gantt({ tasks, onTaskClick, filter, pavimentoFilter = 'T
               const e    = parseDate(task.end_date)
               const left = Math.round((s - projStart) / DAY_MS) * COL_W
               const w    = (Math.round((e - s) / DAY_MS) + 1) * COL_W
-              const col  = getCategoryColor(task.category)
+              const col  = getPrefixoColor(task.label)
               const pct  = progress(task)
 
               return (
@@ -281,13 +347,13 @@ export default function Gantt({ tasks, onTaskClick, filter, pavimentoFilter = 'T
                   {/* Barra */}
                   <div style={{
                     position: 'absolute', left, top: 7, width: w, height: ROW_H - 14,
-                    borderRadius: 5, background: col + '28', border: `1.5px solid ${col}55`,
+                    borderRadius: 4, background: col + '30', border: `1.5px solid ${col}88`,
                     overflow: 'hidden', zIndex: 2,
                   }}>
                     <div style={{
                       position: 'absolute', left: 0, top: 0,
                       height: '100%', width: `${pct}%`,
-                      background: `linear-gradient(90deg, ${col}BB, ${col}77)`,
+                      background: `linear-gradient(90deg, ${col}CC, ${col}88)`,
                     }} />
                   </div>
 
