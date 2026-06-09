@@ -456,10 +456,32 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                       )}
                     </div>
                     {/* Linha 2: Un / Qtde / Valor / Fornecedor / Remover */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '80px 90px 1fr 1fr 28px', gap: 8, alignItems: 'center' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '100px 90px 1fr 1fr 28px', gap: 8, alignItems: 'center' }}>
                       <div>
                         <div style={{ fontSize: 10, color: '#334155', fontWeight: 600, marginBottom: 3 }}>UN.</div>
-                        <input style={{ ...locked ? inpDisabled : inp, padding: '6px 8px', fontSize: 12 }} disabled={locked} value={it.unidade} onChange={e => setItem(it.id, 'unidade', e.target.value)} />
+                        {it.insumo_id && (() => {
+                          const ins = insumos.find(i => i.id === it.insumo_id)
+                          if (ins?.unidade_uso && ins.unidade_uso !== ins.unidade_compra) {
+                            // Monta opções: unidade de compra + unidade de uso + barra (se aço)
+                            const opts = [ins.unidade_compra]
+                            if (ins.unidade_uso && !opts.includes(ins.unidade_uso)) opts.push(ins.unidade_uso)
+                            if (ins.comprimento_m && /aço|aco/i.test(ins.nome)) opts.push(`br${ins.comprimento_m}m`)
+                            return (
+                              <select
+                                style={{ ...locked ? inpDisabled : inp, padding: '6px 8px', fontSize: 12 }}
+                                disabled={locked}
+                                value={it.unidade}
+                                onChange={e => setItem(it.id, 'unidade', e.target.value)}
+                              >
+                                {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                              </select>
+                            )
+                          }
+                          return <input style={{ ...locked ? inpDisabled : inp, padding: '6px 8px', fontSize: 12 }} disabled={locked} value={it.unidade} onChange={e => setItem(it.id, 'unidade', e.target.value)} />
+                        })()}
+                        {!it.insumo_id && (
+                          <input style={{ ...locked ? inpDisabled : inp, padding: '6px 8px', fontSize: 12 }} disabled={locked} value={it.unidade} onChange={e => setItem(it.id, 'unidade', e.target.value)} />
+                        )}
                       </div>
                       <div>
                         <div style={{ fontSize: 10, color: '#334155', fontWeight: 600, marginBottom: 3 }}>QTDE.</div>
