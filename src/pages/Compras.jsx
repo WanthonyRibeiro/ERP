@@ -42,7 +42,6 @@ export default function Compras({ session, permissoes }) {
 
   async function init() {
     const [{ data: obrasData }, { data: solData }] = await Promise.all([
-      // RLS já filtra obras permitidas — basta buscar todas acessíveis
       supabase.from('obras').select('id, nome').order('nome'),
       fetchSolicitacoes(true),
     ])
@@ -88,41 +87,64 @@ export default function Compras({ session, permissoes }) {
       observacoes:      form.observacoes,
       motivo_rejeicao:  form.motivo_rejeicao,
       prazo_entrega:    form.prazo_entrega || null,
+      gestao:           form.gestao || 'GE',
     }
 
     const solId = form.id
+    let targetId = solId
+
     if (solId) {
       const { error } = await supabase.from('solicitacoes_compra').update(payload).eq('id', solId)
       if (error) { console.error('Erro update:', error); return }
+      // Atualiza itens: deleta os antigos e reinsere
+      if (form.itens) {
+        await supabase.from('itens_solicitacao').delete().eq('solicitacao_id', solId)
+        const itensValidos = form.itens.filter(it => it.descricao?.trim())
+        if (itensValidos.length) {
+          await supabase.from('itens_solicitacao').insert(
+            itensValidos.map((it, idx) => ({
+              solicitacao_id:      solId,
+              descricao:           it.descricao,
+              unidade:             it.unidade,
+              quantidade:          parseFloat(it.quantidade) || 1,
+              valor_unitario:      parseFloat(it.valor_unitario) || null,
+              fornecedor_sugerido: it.fornecedor_sugerido || null,
+              ordem:               idx,
+            }))
+          )
+        }
+      }
     } else {
       const { data, error } = await supabase.from('solicitacoes_compra').insert(payload).select('id').single()
       if (error) { console.error('Erro insert:', error); return }
-      const newId = data?.id
-      var newSolId = newId
-      if (newId && form.itens?.length) {
-        await supabase.from('itens_solicitacao').insert(
-          form.itens.filter(it => it.descricao?.trim()).map((it, idx) => ({
-            solicitacao_id:      newId,
-            descricao:           it.descricao,
-            unidade:             it.unidade,
-            quantidade:          parseFloat(it.quantidade) || 1,
-            valor_unitario:      parseFloat(it.valor_unitario) || null,
-            fornecedor_sugerido: it.fornecedor_sugerido || null,
-            ordem:               idx,
-          }))
-        )
+      targetId = data?.id
+      if (targetId && form.itens?.length) {
+        const itensValidos = form.itens.filter(it => it.descricao?.trim())
+        if (itensValidos.length) {
+          await supabase.from('itens_solicitacao').insert(
+            itensValidos.map((it, idx) => ({
+              solicitacao_id:      targetId,
+              descricao:           it.descricao,
+              unidade:             it.unidade,
+              quantidade:          parseFloat(it.quantidade) || 1,
+              valor_unitario:      parseFloat(it.valor_unitario) || null,
+              fornecedor_sugerido: it.fornecedor_sugerido || null,
+              ordem:               idx,
+            }))
+          )
+        }
       }
     }
 
     // Registra histórico
     const acao = form._acao ?? (solId ? 'editada' : 'criada')
     const userName = form._userName ?? session.user.email
-    if (acao === 'aprovada') await registrarHistorico(solId, 'aprovada', userName)
-    else if (acao === 'rejeitada') await registrarHistorico(solId, 'rejeitada', userName, form.motivo_rejeicao)
-    else if (acao === 'em_pedido') await registrarHistorico(solId, 'pedido_realizado', userName)
-    else if (acao === 'recebido') await registrarHistorico(solId, 'recebida', userName)
-    else if (!solId) await registrarHistorico(newSolId, 'criada', userName)
-    else await registrarHistorico(solId, 'editada', userName)
+    if (acao === 'aprovada') await registrarHistorico(targetId, 'aprovada', userName)
+    else if (acao === 'rejeitada') await registrarHistorico(targetId, 'rejeitada', userName, form.motivo_rejeicao)
+    else if (acao === 'em_pedido') await registrarHistorico(targetId, 'pedido_realizado', userName)
+    else if (acao === 'recebido') await registrarHistorico(targetId, 'recebida', userName)
+    else if (!solId) await registrarHistorico(targetId, 'criada', userName)
+    else await registrarHistorico(targetId, 'editada', userName)
 
     setModal(null)
     fetchSolicitacoes()
