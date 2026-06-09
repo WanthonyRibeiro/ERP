@@ -259,6 +259,19 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
                 ✓ Finalizar
               </button>
             )}
+            <button onClick={async () => {
+              if (!confirm('Excluir esta cotação? Esta ação não pode ser desfeita.')) return
+              await supabase.from('cotacao_precos').delete().in(
+                'cotacao_item_id',
+                (await supabase.from('cotacao_itens').select('id').eq('cotacao_id', cotacao.id)).data?.map(i => i.id) ?? ['none']
+              )
+              await supabase.from('cotacao_itens').delete().eq('cotacao_id', cotacao.id)
+              await supabase.from('cotacao_fornecedores').delete().eq('cotacao_id', cotacao.id)
+              await supabase.from('cotacoes').delete().eq('id', cotacao.id)
+              onBack()
+            }} style={{ ...btnBase, background: 'transparent', border: '1px solid #7F1D1D', color: '#FCA5A5' }}>
+              🗑 Excluir
+            </button>
           </div>
         </div>
 
