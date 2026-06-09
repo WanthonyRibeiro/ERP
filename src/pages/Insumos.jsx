@@ -275,7 +275,7 @@ function InsumoModal({ insumo, fornecedores, insumos, onSave, onClose }) {
     }
   }, [form.diametro_mm, form.nome])
 
-  const CATEGORIAS = ['Geral','Estrutura','Alvenaria','Hidráulica','Elétrica','Acabamento','Pintura','Cobertura','Impermeabilização','Instalações','Esquadrias','Externo']
+  const CATEGORIAS = ['Geral','Estrutura','Alvenaria','Hidráulica','Elétrica','Acabamento','Pintura','Cobertura','Impermeabilização','Instalações','Esquadrias','Externo','Logística','Locações','Administrativo','Projetos','Jurídico','Financeiro','RH']
   const UNIDADES   = ['un','m','m²','m³','kg','sc','lt','barra','rolo','pç','cj','ml','cm','mm','t','cx','fr','gl','tb','vb','mil']
 
   const inp = {
@@ -472,7 +472,7 @@ function InsumoModal({ insumo, fornecedores, insumos, onSave, onClose }) {
 }
 
 // ── Componente principal ──────────────────────────────────────────────────
-const CATEGORIAS_FILTER = ['Todas','Estrutura','Alvenaria','Hidráulica','Elétrica','Acabamento','Pintura','Cobertura','Impermeabilização','Instalações','Esquadrias','Externo','Geral']
+const CATEGORIAS_FILTER = ['Todas','Estrutura','Alvenaria','Hidráulica','Elétrica','Acabamento','Pintura','Cobertura','Impermeabilização','Instalações','Esquadrias','Externo','Logística','Locações','Administrativo','Projetos','Jurídico','Financeiro','RH','Geral']
 
 export default function Insumos({ session }) {
   const [insumos,     setInsumos]     = useState([])

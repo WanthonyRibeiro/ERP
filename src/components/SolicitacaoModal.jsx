@@ -82,7 +82,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
   async function loadInsumos(gestao) {
     const categorias = gestao === 'GA'
       ? ['Administrativo', 'Projetos', 'Jurídico', 'Financeiro', 'RH', 'Geral']
-      : ['Estrutura', 'Alvenaria', 'Hidráulica', 'Elétrica', 'Acabamento', 'Pintura', 'Cobertura', 'Impermeabilização', 'Instalações', 'Esquadrias', 'Externo']
+      : ['Estrutura', 'Alvenaria', 'Hidráulica', 'Elétrica', 'Acabamento', 'Pintura', 'Cobertura', 'Impermeabilização', 'Instalações', 'Esquadrias', 'Externo', 'Logística', 'Locações']
     const { data } = await supabase.from('insumos')
       .select('id, codigo, nome, unidade_compra, unidade_uso, fator_conversao, preco_referencia')
       .in('categoria', categorias)
