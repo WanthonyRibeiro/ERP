@@ -95,16 +95,19 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
   const [itens,        setItens]        = useState([])
   const [fornecedores, setFornecedores] = useState([])
   const [precos,       setPrecos]       = useState([])
-  const [fornsList,    setFornsList]    = useState([]) // cadastro de fornecedores
+  const [fornsList,    setFornsList]    = useState([])
+  const [insumos,      setInsumos]      = useState([])
+  const [showInsumoSearch, setShowInsumoSearch] = useState(null)
+  const [insumoSearch, setInsumoSearch] = useState('')
   const [loading,      setLoading]      = useState(true)
   const [toast,        setToast]        = useState(null)
-  const [aba,          setAba]          = useState('comparativo') // comparativo | fornecedores | itens
+  const [aba,          setAba]          = useState('comparativo')
 
   useEffect(() => { load() }, [cotacao.id])
 
   async function load() {
     setLoading(true)
-    const [{ data: itensData }, { data: fornsData }, { data: precosData }, { data: fornsListData }] = await Promise.all([
+    const [{ data: itensData }, { data: fornsData }, { data: precosData }, { data: fornsListData }, { data: insumosData }] = await Promise.all([
       supabase.from('cotacao_itens').select('*').eq('cotacao_id', cotacao.id).order('ordem'),
       supabase.from('cotacao_fornecedores').select('*').eq('cotacao_id', cotacao.id).order('ordem'),
       supabase.from('cotacao_precos').select('*').in(
@@ -112,13 +115,22 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
         (await supabase.from('cotacao_itens').select('id').eq('cotacao_id', cotacao.id)).data?.map(i => i.id) ?? []
       ),
       supabase.from('fornecedores').select('id, nome').order('nome'),
+      supabase.from('insumos').select('id, codigo, nome, unidade_compra, preco_referencia').eq('ativo', true).order('nome'),
     ])
     setItens(itensData ?? [])
     setFornecedores(fornsData ?? [])
     setPrecos(precosData ?? [])
     setFornsList(fornsListData ?? [])
+    setInsumos(insumosData ?? [])
     setLoading(false)
   }
+
+  const insumosFiltrados = insumos.filter(i => {
+    if (!insumoSearch) return true
+    const q = insumoSearch.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const nome = (i.nome ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    return nome.includes(q) || (i.codigo ?? '').includes(insumoSearch)
+  })
 
   function showToast(msg, type = 'success') {
     setToast({ msg, type })
@@ -513,14 +525,72 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
               </div>
             ) : (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 80px 80px 28px', gap: 8, marginBottom: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px 28px', gap: 8, marginBottom: 8 }}>
                   {['Descrição', 'Unidade', 'Quantidade', ''].map(h => (
                     <div key={h} style={{ fontSize: 10, fontWeight: 700, color: '#334155', textTransform: 'uppercase' }}>{h}</div>
                   ))}
                 </div>
                 {itens.map(item => (
-                  <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '2fr 80px 80px 28px', gap: 8, marginBottom: 8 }}>
-                    <input style={inp} value={item.descricao} onChange={e => updateItem(item.id, 'descricao', e.target.value)} />
+                  <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px 28px', gap: 8, marginBottom: 8, position: 'relative' }}>
+                    <div style={{ position: 'relative' }}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input
+                          style={{ ...inp, flex: 1 }}
+                          value={item.descricao}
+                          onChange={e => {
+                            updateItem(item.id, 'descricao', e.target.value)
+                            setInsumoSearch(e.target.value)
+                            setShowInsumoSearch(item.id)
+                          }}
+                          onBlur={() => setTimeout(() => setShowInsumoSearch(null), 150)}
+                          placeholder="Material ou serviço"
+                        />
+                        <button
+                          onMouseDown={e => { e.preventDefault(); setShowInsumoSearch(showInsumoSearch === item.id ? null : item.id); setInsumoSearch('') }}
+                          style={{ padding: '6px 10px', borderRadius: 7, border: '1px solid #1E3A5F', background: showInsumoSearch === item.id ? '#1E3A5F' : 'transparent', color: '#3B82F6', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                        >🔍</button>
+                      </div>
+                      {showInsumoSearch === item.id && (
+                        <div
+                          onMouseDown={e => e.preventDefault()}
+                          style={{
+                            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                            background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 8,
+                            boxShadow: '0 8px 24px #00000080', maxHeight: 200, overflowY: 'auto',
+                          }}>
+                          <div style={{ padding: '6px 8px', borderBottom: '1px solid #1E2235' }}>
+                            <input
+                              style={{ ...inp, fontSize: 12, padding: '5px 8px' }}
+                              placeholder="Buscar insumo..."
+                              value={insumoSearch}
+                              onChange={e => setInsumoSearch(e.target.value)}
+                            />
+                          </div>
+                          {insumosFiltrados.length === 0 ? (
+                            <div style={{ padding: '10px', fontSize: 12, color: '#334155', textAlign: 'center' }}>Nenhum insumo encontrado</div>
+                          ) : insumosFiltrados.slice(0, 20).map(ins => (
+                            <div
+                              key={ins.id}
+                              onMouseDown={() => {
+                                updateItem(item.id, 'descricao', ins.nome)
+                                updateItem(item.id, 'unidade', ins.unidade_compra ?? 'un')
+                                setShowInsumoSearch(null)
+                                setInsumoSearch('')
+                              }}
+                              style={{ padding: '7px 10px', cursor: 'pointer', borderBottom: '1px solid #161929', display: 'flex', justifyContent: 'space-between' }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#0F1117'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <div>
+                                <span style={{ fontSize: 10, color: '#3B82F6', fontFamily: 'monospace', marginRight: 6 }}>{ins.codigo}</span>
+                                <span style={{ fontSize: 12, color: '#F1F5F9' }}>{ins.nome}</span>
+                              </div>
+                              <span style={{ fontSize: 11, color: '#475569', flexShrink: 0 }}>{ins.unidade_compra}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <input style={inp} value={item.unidade} onChange={e => updateItem(item.id, 'unidade', e.target.value)} />
                     <input style={inp} type="number" min="0" step="0.01" value={item.quantidade} onChange={e => updateItem(item.id, 'quantidade', e.target.value)} />
                     <button onClick={() => removeItem(item.id)} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 18, cursor: 'pointer', padding: 0, alignSelf: 'center' }}>×</button>
