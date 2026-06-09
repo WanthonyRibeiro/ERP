@@ -61,7 +61,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
     solicitante_nome: solicitacao?.solicitante_nome ?? userName,
     observacoes:      solicitacao?.observacoes      ?? '',
     motivo_rejeicao:  solicitacao?.motivo_rejeicao  ?? '',
-    prazo_entrega:    solicitacao?.prazo_entrega    ?? '',
+    prazo_entrega:    solicitacao?.prazo_entrega    ?? today,
     gestao:           solicitacao?.gestao           ?? '',
   })
   const [items, setItems] = useState(
@@ -461,11 +461,11 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                         <div style={{ fontSize: 10, color: '#334155', fontWeight: 600, marginBottom: 3 }}>UN.</div>
                         {it.insumo_id && (() => {
                           const ins = insumos.find(i => i.id === it.insumo_id)
+                          const isAco = ins && (ins.comprimento_m > 0) && (/aço|aco|ca-50|ca-60/i.test(ins.nome) || ins.tipo?.includes('Aço'))
                           if (ins?.unidade_uso && ins.unidade_uso !== ins.unidade_compra) {
-                            // Monta opções: unidade de compra + unidade de uso + barra (se aço)
                             const opts = [ins.unidade_compra]
                             if (ins.unidade_uso && !opts.includes(ins.unidade_uso)) opts.push(ins.unidade_uso)
-                            if (ins.comprimento_m && /aço|aco/i.test(ins.nome)) opts.push(`br${ins.comprimento_m}m`)
+                            if (isAco) opts.push(`br${ins.comprimento_m}m`)
                             return (
                               <select
                                 style={{ ...locked ? inpDisabled : inp, padding: '6px 8px', fontSize: 12 }}
