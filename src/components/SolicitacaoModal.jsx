@@ -399,67 +399,81 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                   ))}
                 </div>
                 {items.map(it => (
-                  <div key={it.id} style={{ marginBottom: 6 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 60px 70px 100px 1fr 28px', gap: 6 }}>
-                      <div style={{ position: 'relative' }}>
-                        <input
-                          style={{ ...locked ? inpDisabled : inp, padding: '7px 10px' }}
-                          disabled={locked}
-                          value={it.descricao}
-                          onChange={e => setItem(it.id, 'descricao', e.target.value)}
-                          onFocus={() => form.gestao && !locked && setShowInsumoSearch(it.id)}
-                          placeholder={form.gestao ? '🔍 Digite ou busque no catálogo...' : 'Material ou serviço'}
-                        />
-                        {/* Dropdown de insumos */}
-                        {showInsumoSearch === it.id && insumos.length > 0 && (
-                          <div style={{
-                            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-                            background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 8,
-                            boxShadow: '0 8px 24px #00000080', maxHeight: 220, overflowY: 'auto',
-                          }}>
-                            <div style={{ padding: '8px 10px', borderBottom: '1px solid #1E2235' }}>
-                              <input
-                                style={{ ...inp, fontSize: 12, padding: '5px 8px' }}
-                                placeholder="Buscar insumo..."
-                                value={insumoSearch}
-                                onChange={e => setInsumoSearch(e.target.value)}
-                                autoFocus
-                              />
-                            </div>
-                            {insumosFiltrados.length === 0 ? (
-                              <div style={{ padding: '12px', fontSize: 12, color: '#334155', textAlign: 'center' }}>Nenhum insumo encontrado</div>
-                            ) : insumosFiltrados.slice(0, 20).map(ins => (
-                              <div
-                                key={ins.id}
-                                onClick={() => aplicarInsumo(it.id, ins)}
-                                style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #161929' }}
-                                onMouseEnter={e => e.currentTarget.style.background = '#0F1117'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                              >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <div>
-                                    <span style={{ fontSize: 10, color: '#3B82F6', fontFamily: 'monospace', marginRight: 8 }}>{ins.codigo}</span>
-                                    <span style={{ fontSize: 12, color: '#F1F5F9' }}>{ins.nome}</span>
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                                    <span style={{ fontSize: 11, color: '#475569' }}>{ins.unidade_compra}</span>
-                                    {ins.preco_referencia && <span style={{ fontSize: 11, color: '#10B981' }}>R$ {Number(ins.preco_referencia).toFixed(2)}</span>}
-                                  </div>
+                  <div key={it.id} style={{ marginBottom: 10, background: '#0F1117', border: '1px solid #1E2235', borderRadius: 8, padding: '10px' }}>
+                    {/* Linha 1: Descrição full width */}
+                    <div style={{ position: 'relative', marginBottom: 8 }}>
+                      <input
+                        style={{ ...locked ? inpDisabled : inp, padding: '7px 10px', width: '100%' }}
+                        disabled={locked}
+                        value={it.descricao}
+                        onChange={e => setItem(it.id, 'descricao', e.target.value)}
+                        onFocus={() => form.gestao && !locked && setShowInsumoSearch(it.id)}
+                        placeholder={form.gestao ? '🔍 Digite ou busque no catálogo...' : 'Material ou serviço'}
+                      />
+                      {/* Dropdown de insumos */}
+                      {showInsumoSearch === it.id && insumos.length > 0 && (
+                        <div style={{
+                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                          background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 8,
+                          boxShadow: '0 8px 24px #00000080', maxHeight: 220, overflowY: 'auto',
+                        }}>
+                          <div style={{ padding: '8px 10px', borderBottom: '1px solid #1E2235' }}>
+                            <input
+                              style={{ ...inp, fontSize: 12, padding: '5px 8px' }}
+                              placeholder="Buscar insumo..."
+                              value={insumoSearch}
+                              onChange={e => setInsumoSearch(e.target.value)}
+                              autoFocus
+                            />
+                          </div>
+                          {insumosFiltrados.length === 0 ? (
+                            <div style={{ padding: '12px', fontSize: 12, color: '#334155', textAlign: 'center' }}>Nenhum insumo encontrado</div>
+                          ) : insumosFiltrados.slice(0, 20).map(ins => (
+                            <div
+                              key={ins.id}
+                              onClick={() => aplicarInsumo(it.id, ins)}
+                              style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #161929' }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#0F1117'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                  <span style={{ fontSize: 10, color: '#3B82F6', fontFamily: 'monospace', marginRight: 8 }}>{ins.codigo}</span>
+                                  <span style={{ fontSize: 12, color: '#F1F5F9' }}>{ins.nome}</span>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                                  <span style={{ fontSize: 11, color: '#475569' }}>{ins.unidade_compra}</span>
+                                  {ins.preco_referencia && <span style={{ fontSize: 11, color: '#10B981' }}>R$ {Number(ins.preco_referencia).toFixed(2)}</span>}
                                 </div>
                               </div>
-                            ))}
-                            <div
-                              onClick={() => { setShowInsumoSearch(null); setInsumoSearch('') }}
-                              style={{ padding: '8px 12px', fontSize: 11, color: '#334155', cursor: 'pointer', textAlign: 'center' }}
-                            >Digitar manualmente</div>
-                          </div>
-                        )}
+                            </div>
+                          ))}
+                          <div
+                            onClick={() => { setShowInsumoSearch(null); setInsumoSearch('') }}
+                            style={{ padding: '8px 12px', fontSize: 11, color: '#334155', cursor: 'pointer', textAlign: 'center' }}
+                          >Digitar manualmente</div>
+                        </div>
+                      )}
+                    </div>
+                    {/* Linha 2: Un / Qtde / Valor / Fornecedor / Remover */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '80px 90px 1fr 1fr 28px', gap: 8, alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#334155', fontWeight: 600, marginBottom: 3 }}>UN.</div>
+                        <input style={{ ...locked ? inpDisabled : inp, padding: '6px 8px', fontSize: 12 }} disabled={locked} value={it.unidade} onChange={e => setItem(it.id, 'unidade', e.target.value)} />
                       </div>
-                      <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} value={it.unidade} onChange={e => setItem(it.id, 'unidade', e.target.value)} />
-                      <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} type="number" min="0" value={it.quantidade} onChange={e => setItem(it.id, 'quantidade', e.target.value)} />
-                      <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} type="number" min="0" step="0.01" value={it.valor_unitario ?? ''} onChange={e => setItem(it.id, 'valor_unitario', e.target.value)} placeholder="0,00" />
-                      <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} value={it.fornecedor_sugerido ?? ''} onChange={e => setItem(it.id, 'fornecedor_sugerido', e.target.value)} placeholder="Opcional" />
-                      <button onClick={() => removeItem(it.id)} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 16, cursor: 'pointer', padding: 0, alignSelf: 'center' }}>×</button>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#334155', fontWeight: 600, marginBottom: 3 }}>QTDE.</div>
+                        <input style={{ ...locked ? inpDisabled : inp, padding: '6px 8px', fontSize: 12 }} disabled={locked} type="number" min="0" value={it.quantidade} onChange={e => setItem(it.id, 'quantidade', e.target.value)} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#334155', fontWeight: 600, marginBottom: 3 }}>VALOR UNIT.</div>
+                        <input style={{ ...locked ? inpDisabled : inp, padding: '6px 8px', fontSize: 12 }} disabled={locked} type="number" min="0" step="0.01" value={it.valor_unitario ?? ''} onChange={e => setItem(it.id, 'valor_unitario', e.target.value)} placeholder="0,00" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#334155', fontWeight: 600, marginBottom: 3 }}>FORNECEDOR SUGERIDO</div>
+                        <input style={{ ...locked ? inpDisabled : inp, padding: '6px 8px', fontSize: 12 }} disabled={locked} value={it.fornecedor_sugerido ?? ''} onChange={e => setItem(it.id, 'fornecedor_sugerido', e.target.value)} placeholder="Opcional" />
+                      </div>
+                      <button onClick={() => removeItem(it.id)} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 18, cursor: 'pointer', padding: 0, alignSelf: 'flex-end', marginBottom: 2 }}>×</button>
                     </div>
                   </div>
                 ))}
