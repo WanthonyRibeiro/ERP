@@ -92,18 +92,14 @@ function detectTemplate(nome) {
   return TEMPLATES.find(t => t.match.test(nome)) ?? null
 }
 
-// ── Gera código automático ────────────────────────────────────────────────
-function gerarCodigo(nome, categoria) {
-  const catMap = {
-    'Estrutura': 'EST', 'Hidráulica': 'HID', 'Elétrica': 'ELE',
-    'Alvenaria': 'ALV', 'Acabamento': 'ACB', 'Pintura': 'PIN',
-    'Cobertura': 'COB', 'Geral': 'GER',
-  }
-  const cat = catMap[categoria] ?? 'GER'
-  const palavras = nome.trim().toUpperCase().split(/\s+/)
-  const sigla = palavras.slice(0, 2).map(p => p.slice(0, 3)).join('')
-  const rand = Math.floor(Math.random() * 900 + 100)
-  return `${cat}-${sigla}-${rand}`
+// ── Gera próximo código numérico sequencial ───────────────────────────────
+function gerarProximoCodigo(insumosExistentes) {
+  if (!insumosExistentes.length) return '00001'
+  const numeros = insumosExistentes
+    .map(i => parseInt(i.codigo))
+    .filter(n => !isNaN(n))
+  const maximo = Math.max(...numeros, 0)
+  return String(maximo + 1).padStart(5, '0')
 }
 
 // ── Calculadora de conversão ──────────────────────────────────────────────
@@ -224,10 +220,11 @@ function Calculadora({ insumo, onClose }) {
 }
 
 // ── Modal de cadastro/edição ──────────────────────────────────────────────
-function InsumoModal({ insumo, fornecedores, onSave, onClose }) {
+function InsumoModal({ insumo, fornecedores, insumos, onSave, onClose }) {
   const isNew = !insumo?.id
+  const proximoCodigo = gerarProximoCodigo(insumos)
   const [form, setForm] = useState({
-    codigo:           insumo?.codigo           ?? '',
+    codigo:           insumo?.codigo           ?? proximoCodigo,
     codigo_sinapi:    insumo?.codigo_sinapi     ?? '',
     nome:             insumo?.nome             ?? '',
     descricao:        insumo?.descricao        ?? '',
@@ -260,12 +257,8 @@ function InsumoModal({ insumo, fornecedores, onSave, onClose }) {
       set('unidade_uso',     t.unidade_uso      ?? form.unidade_uso)
       set('fator_conversao', t.fator_conversao  ?? form.fator_conversao)
       set('comprimento_m',   t.comprimento_m    ?? form.comprimento_m)
-      if (!form.codigo) set('codigo', gerarCodigo(nome, t.categoria))
     } else {
       setTemplate(null)
-      if (!form.codigo && nome.length > 3) {
-        set('codigo', gerarCodigo(nome, form.categoria))
-      }
     }
   }
 
@@ -334,12 +327,12 @@ function InsumoModal({ insumo, fornecedores, onSave, onClose }) {
           {/* Código + SINAPI */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
             <div>
-              <label style={lbl}>Código próprio *</label>
+              <label style={lbl}>Código *</label>
               <div style={{ display: 'flex', gap: 6 }}>
-                <input style={{ ...inp, flex: 1 }} value={form.codigo} onChange={e => set('codigo', e.target.value)} placeholder="EST-ACO-001" />
-                <button onClick={() => set('codigo', gerarCodigo(form.nome || 'INS', form.categoria))}
+                <input style={{ ...inp, flex: 1, fontFamily: 'monospace' }} value={form.codigo} onChange={e => set('codigo', e.target.value)} placeholder="00001" />
+                <button onClick={() => set('codigo', gerarProximoCodigo(insumos))}
                   style={{ padding: '8px 10px', borderRadius: 7, border: '1px solid #1E3A5F', background: 'transparent', color: '#3B82F6', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  🔄 Gerar
+                  🔄 Auto
                 </button>
               </div>
             </div>
@@ -659,6 +652,7 @@ export default function Insumos({ session }) {
         <InsumoModal
           insumo={modal.id ? modal : null}
           fornecedores={fornecedores}
+          insumos={insumos}
           onSave={handleSave}
           onClose={() => setModal(null)}
         />

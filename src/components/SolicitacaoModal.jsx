@@ -49,6 +49,9 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
   const [historico, setHistorico] = useState([])
   const [loadingHist, setLoadingHist] = useState(false)
   const [showReject, setShowReject] = useState(false)
+  const [insumos, setInsumos] = useState([])
+  const [showInsumoSearch, setShowInsumoSearch] = useState(null) // id do item sendo pesquisado
+  const [insumoSearch, setInsumoSearch] = useState('')
 
   const [form, setForm] = useState({
     obra_id:          solicitacao?.obra_id          ?? obras[0]?.id ?? '',
@@ -59,6 +62,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
     observacoes:      solicitacao?.observacoes      ?? '',
     motivo_rejeicao:  solicitacao?.motivo_rejeicao  ?? '',
     prazo_entrega:    solicitacao?.prazo_entrega    ?? '',
+    gestao:           solicitacao?.gestao           ?? '',
   })
   const [items, setItems] = useState(
     solicitacao?.itens?.length ? solicitacao.itens : [newItem()]
@@ -69,6 +73,39 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
 
   const total = items.reduce((acc, it) =>
     acc + (parseFloat(it.valor_unitario) || 0) * (parseFloat(it.quantidade) || 0), 0)
+
+  // Carrega insumos filtrados pela gestão selecionada
+  useEffect(() => {
+    if (form.gestao) loadInsumos(form.gestao)
+  }, [form.gestao])
+
+  async function loadInsumos(gestao) {
+    const categorias = gestao === 'GA'
+      ? ['Administrativo', 'Projetos', 'Jurídico', 'Financeiro', 'RH', 'Geral']
+      : ['Estrutura', 'Alvenaria', 'Hidráulica', 'Elétrica', 'Acabamento', 'Pintura', 'Cobertura', 'Impermeabilização', 'Instalações', 'Esquadrias', 'Externo']
+    const { data } = await supabase.from('insumos')
+      .select('id, codigo, nome, unidade_compra, unidade_uso, fator_conversao, preco_referencia')
+      .in('categoria', categorias)
+      .eq('ativo', true)
+      .order('nome')
+    setInsumos(data ?? [])
+  }
+
+  function aplicarInsumo(itemId, insumo) {
+    setItems(its => its.map(i => i.id === itemId ? {
+      ...i,
+      descricao: insumo.nome,
+      unidade: insumo.unidade_compra ?? 'un',
+      valor_unitario: insumo.preco_referencia ?? '',
+      insumo_id: insumo.id,
+    } : i))
+    setShowInsumoSearch(null)
+    setInsumoSearch('')
+  }
+
+  const insumosFiltrados = insumos.filter(i =>
+    !insumoSearch || i.nome.toLowerCase().includes(insumoSearch.toLowerCase()) || i.codigo.includes(insumoSearch)
+  )
 
   useEffect(() => {
     if (aba === 'historico' && solicitacao?.id) loadHistorico()
@@ -160,7 +197,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
   function setItem(id, k, v) { if (!locked) setItems(its => its.map(i => i.id === id ? { ...i, [k]: v } : i)) }
 
   function handleSave(statusOverride) {
-    if (!form.titulo || !form.obra_id) return
+    if (!form.titulo || !form.obra_id || !form.gestao) return
     onSave({
       ...solicitacao,
       ...form,
@@ -242,6 +279,55 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                 </div>
               )}
 
+              {/* Gestão */}
+              {isNew && !form.gestao ? (
+                <div style={{ marginBottom: 20 }}>
+                  <label style={lbl}>Tipo de Gestão *</label>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                    <button onClick={() => setF('gestao', 'GA')} style={{
+                      flex: 1, padding: '18px', borderRadius: 10,
+                      border: '2px solid #1E2235', background: '#0F1117',
+                      cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = '#3B82F6'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = '#1E2235'}
+                    >
+                      <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>G.A.</div>
+                      <div style={{ fontSize: 11, color: '#475569' }}>Gestão Administrativa</div>
+                      <div style={{ fontSize: 10, color: '#334155', marginTop: 6 }}>ART, projetos, honorários,<br/>colaboradores, taxas...</div>
+                    </button>
+                    <button onClick={() => setF('gestao', 'GE')} style={{
+                      flex: 1, padding: '18px', borderRadius: 10,
+                      border: '2px solid #1E2235', background: '#0F1117',
+                      cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = '#10B981'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = '#1E2235'}
+                    >
+                      <div style={{ fontSize: 28, marginBottom: 8 }}>🏗️</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>G.E.</div>
+                      <div style={{ fontSize: 11, color: '#475569' }}>Gestão Executiva</div>
+                      <div style={{ fontSize: 10, color: '#334155', marginTop: 6 }}>Materiais, equipamentos,<br/>serviços de obra...</div>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Badge da gestão + botão trocar */}
+                  {form.gestao && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                      <span style={{
+                        padding: '3px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700,
+                        background: form.gestao === 'GA' ? '#1E3A5F' : '#064E3B',
+                        color: form.gestao === 'GA' ? '#93C5FD' : '#6EE7B7',
+                      }}>{form.gestao === 'GA' ? '📋 G.A. — Gestão Administrativa' : '🏗️ G.E. — Gestão Executiva'}</span>
+                      {isNew && (
+                        <button onClick={() => setF('gestao', '')} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}>trocar</button>
+                      )}
+                    </div>
+                  )}
+
               {/* Título + Obra */}
               <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
                 <div style={{ flex: 2 }}>
@@ -315,13 +401,68 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                   ))}
                 </div>
                 {items.map(it => (
-                  <div key={it.id} style={{ display: 'grid', gridTemplateColumns: '2fr 60px 70px 100px 1fr 28px', gap: 6, marginBottom: 6 }}>
-                    <input style={{ ...locked ? inpDisabled : inp, padding: '7px 10px' }} disabled={locked} value={it.descricao} onChange={e => setItem(it.id, 'descricao', e.target.value)} placeholder="Material ou serviço" />
-                    <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} value={it.unidade} onChange={e => setItem(it.id, 'unidade', e.target.value)} />
-                    <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} type="number" min="0" value={it.quantidade} onChange={e => setItem(it.id, 'quantidade', e.target.value)} />
-                    <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} type="number" min="0" step="0.01" value={it.valor_unitario ?? ''} onChange={e => setItem(it.id, 'valor_unitario', e.target.value)} placeholder="0,00" />
-                    <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} value={it.fornecedor_sugerido ?? ''} onChange={e => setItem(it.id, 'fornecedor_sugerido', e.target.value)} placeholder="Opcional" />
-                    <button onClick={() => removeItem(it.id)} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 16, cursor: 'pointer', padding: 0, alignSelf: 'center' }}>×</button>
+                  <div key={it.id} style={{ marginBottom: 6 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 60px 70px 100px 1fr 28px', gap: 6 }}>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          style={{ ...locked ? inpDisabled : inp, padding: '7px 10px' }}
+                          disabled={locked}
+                          value={it.descricao}
+                          onChange={e => setItem(it.id, 'descricao', e.target.value)}
+                          onFocus={() => form.gestao && !locked && setShowInsumoSearch(it.id)}
+                          placeholder={form.gestao ? '🔍 Digite ou busque no catálogo...' : 'Material ou serviço'}
+                        />
+                        {/* Dropdown de insumos */}
+                        {showInsumoSearch === it.id && insumos.length > 0 && (
+                          <div style={{
+                            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                            background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 8,
+                            boxShadow: '0 8px 24px #00000080', maxHeight: 220, overflowY: 'auto',
+                          }}>
+                            <div style={{ padding: '8px 10px', borderBottom: '1px solid #1E2235' }}>
+                              <input
+                                style={{ ...inp, fontSize: 12, padding: '5px 8px' }}
+                                placeholder="Buscar insumo..."
+                                value={insumoSearch}
+                                onChange={e => setInsumoSearch(e.target.value)}
+                                autoFocus
+                              />
+                            </div>
+                            {insumosFiltrados.length === 0 ? (
+                              <div style={{ padding: '12px', fontSize: 12, color: '#334155', textAlign: 'center' }}>Nenhum insumo encontrado</div>
+                            ) : insumosFiltrados.slice(0, 20).map(ins => (
+                              <div
+                                key={ins.id}
+                                onClick={() => aplicarInsumo(it.id, ins)}
+                                style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #161929' }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#0F1117'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div>
+                                    <span style={{ fontSize: 10, color: '#3B82F6', fontFamily: 'monospace', marginRight: 8 }}>{ins.codigo}</span>
+                                    <span style={{ fontSize: 12, color: '#F1F5F9' }}>{ins.nome}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                                    <span style={{ fontSize: 11, color: '#475569' }}>{ins.unidade_compra}</span>
+                                    {ins.preco_referencia && <span style={{ fontSize: 11, color: '#10B981' }}>R$ {Number(ins.preco_referencia).toFixed(2)}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            <div
+                              onClick={() => { setShowInsumoSearch(null); setInsumoSearch('') }}
+                              style={{ padding: '8px 12px', fontSize: 11, color: '#334155', cursor: 'pointer', textAlign: 'center' }}
+                            >Digitar manualmente</div>
+                          </div>
+                        )}
+                      </div>
+                      <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} value={it.unidade} onChange={e => setItem(it.id, 'unidade', e.target.value)} />
+                      <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} type="number" min="0" value={it.quantidade} onChange={e => setItem(it.id, 'quantidade', e.target.value)} />
+                      <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} type="number" min="0" step="0.01" value={it.valor_unitario ?? ''} onChange={e => setItem(it.id, 'valor_unitario', e.target.value)} placeholder="0,00" />
+                      <input style={{ ...locked ? inpDisabled : inp, padding: '7px 8px' }} disabled={locked} value={it.fornecedor_sugerido ?? ''} onChange={e => setItem(it.id, 'fornecedor_sugerido', e.target.value)} placeholder="Opcional" />
+                      <button onClick={() => removeItem(it.id)} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 16, cursor: 'pointer', padding: 0, alignSelf: 'center' }}>×</button>
+                    </div>
                   </div>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10, paddingTop: 10, borderTop: '1px solid #1E2235' }}>
@@ -345,6 +486,8 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                   <label style={{ ...lbl, color: '#EF4444' }}>Motivo da rejeição</label>
                   <textarea style={{ ...inp, borderColor: '#EF444440', resize: 'vertical', minHeight: 56 }} value={form.motivo_rejeicao} onChange={e => setF('motivo_rejeicao', e.target.value)} placeholder="Explique o motivo..." />
                 </div>
+              )}
+                </>
               )}
             </>
           )}
