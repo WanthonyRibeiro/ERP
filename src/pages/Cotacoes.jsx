@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -134,7 +134,7 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
 
   function showToast(msg, type = 'success') {
     setToast({ msg, type })
-    setTimeout(() => setToast(null), 3000)
+    if (type !== 'loading') setTimeout(() => setToast(null), 3000)
   }
 
   // ── ITENS ────────────────────────────────────────────────────────────────
@@ -182,7 +182,153 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
     await updateFornecedor(cotFornId, 'fornecedor_nome', forn.nome)
   }
 
-  // ── PREÇOS ────────────────────────────────────────────────────────────────
+  // ── IMPORTAÇÃO DE COTAÇÃO VIA IA ─────────────────────────────────────────
+  const importRef = useRef(null)
+  const [importando, setImportando] = useState(false)
+  const [importModal, setImportModal] = useState(null) // dados extraídos pela IA
+
+  async function handleImportCotacao(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    e.target.value = ''
+    const ext = file.name.split('.').pop().toLowerCase()
+    setImportando(true)
+    showToast('Analisando arquivo...', 'loading')
+
+    try {
+      let textContent = ''
+      let imageBase64 = null
+      let imageType = null
+
+      if (['jpg','jpeg','png','webp'].includes(ext)) {
+        // Imagem — manda direto pro Claude
+        const reader = new FileReader()
+        imageBase64 = await new Promise(res => {
+          reader.onload = ev => res(ev.target.result.split(',')[1])
+          reader.readAsDataURL(file)
+        })
+        imageType = `image/${ext === 'jpg' ? 'jpeg' : ext}`
+      } else if (['xlsx','xls'].includes(ext)) {
+        // Excel — converte para texto
+        const XLSX = await import('xlsx')
+        const buf = await file.arrayBuffer()
+        const wb = XLSX.read(buf, { type: 'array' })
+        const textos = wb.SheetNames.map(name => {
+          const ws = wb.Sheets[name]
+          return `=== Aba: ${name} ===\n` + XLSX.utils.sheet_to_csv(ws)
+        })
+        textContent = textos.join('\n\n')
+      } else if (ext === 'pdf') {
+        // PDF — tenta extrair texto
+        textContent = `[Arquivo PDF: ${file.name}] — conteúdo não extraível diretamente. Use imagem ou Excel.`
+      }
+
+      // Monta mensagem para o Claude
+      const prompt = `Você é um assistente de análise de cotações para construção civil.
+Analise este documento e extraia as informações da proposta do fornecedor.
+Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
+{
+  "fornecedor_nome": "nome do fornecedor ou empresa",
+  "condicao_pagamento": "ex: 30/60/90 dias ou à vista",
+  "prazo_entrega_dias": 15,
+  "frete": 0,
+  "observacoes": "observações gerais",
+  "itens": [
+    {
+      "descricao": "nome do item",
+      "unidade": "kg",
+      "quantidade": 1,
+      "preco_unitario": 10.50,
+      "desconto_pct": 0,
+      "bdi_pct": 0
+    }
+  ]
+}`
+
+      const messages = imageBase64 ? [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: imageType, data: imageBase64 } },
+          { type: 'text', text: prompt }
+        ]
+      }] : [{
+        role: 'user',
+        content: `${prompt}\n\nConteúdo do arquivo:\n${textContent}`
+      }]
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2000, messages })
+      })
+      const data = await res.json()
+      const text = data.content?.[0]?.text ?? ''
+      const clean = text.replace(/```json|```/g, '').trim()
+      const parsed = JSON.parse(clean)
+      setImportModal(parsed)
+      showToast('Cotação analisada! Confirme os dados.', 'success')
+    } catch (err) {
+      console.error(err)
+      showToast('Erro ao analisar arquivo.', 'error')
+    }
+    setImportando(false)
+  }
+
+  async function confirmarImportacao(dados, fornecedorId) {
+    // Cria ou usa fornecedor existente
+    let fornId = fornecedorId
+    if (!fornId) {
+      const { data } = await supabase.from('cotacao_fornecedores').insert({
+        cotacao_id: cotacao.id,
+        fornecedor_nome: dados.fornecedor_nome ?? 'Fornecedor importado',
+        condicao_pagamento: dados.condicao_pagamento ?? '',
+        prazo_entrega_dias: dados.prazo_entrega_dias ?? null,
+        frete: parseFloat(dados.frete) || 0,
+        observacoes: dados.observacoes ?? '',
+        ordem: fornecedores.length,
+      }).select().single()
+      fornId = data?.id
+      if (data) setFornecedores(f => [...f, data])
+    }
+
+    if (!fornId) return
+
+    // Para cada item: encontra ou cria o item na cotação, e insere o preço
+    for (const it of (dados.itens ?? [])) {
+      // Verifica se já existe item com mesma descrição
+      let itemId = itens.find(i => i.descricao?.toLowerCase() === it.descricao?.toLowerCase())?.id
+
+      if (!itemId) {
+        const { data: novoItem } = await supabase.from('cotacao_itens').insert({
+          cotacao_id: cotacao.id,
+          descricao: it.descricao,
+          unidade: it.unidade ?? 'un',
+          quantidade: parseFloat(it.quantidade) || 1,
+          ordem: itens.length,
+        }).select().single()
+        if (novoItem) {
+          setItens(its => [...its, novoItem])
+          itemId = novoItem.id
+        }
+      }
+
+      if (itemId) {
+        const precoPayload = {
+          cotacao_item_id: itemId,
+          cotacao_fornecedor_id: fornId,
+          preco_unitario: parseFloat(it.preco_unitario) || 0,
+          desconto_pct: parseFloat(it.desconto_pct) || 0,
+          bdi_pct: parseFloat(it.bdi_pct) || 0,
+        }
+        const { data: novoPreco } = await supabase.from('cotacao_precos').insert(precoPayload).select().single()
+        if (novoPreco) setPrecos(ps => [...ps, novoPreco])
+      }
+    }
+
+    setImportModal(null)
+    showToast(`✅ ${dados.itens?.length ?? 0} itens importados de ${dados.fornecedor_nome}!`)
+    setAba('comparativo')
+  }
   async function updatePreco(itemId, fornId, field, value) {
     const existing = precos.find(p => p.cotacao_item_id === itemId && p.cotacao_fornecedor_id === fornId)
     const numVal = parseFloat(value) || 0
@@ -250,6 +396,10 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={addItem} style={{ ...btnBase, background: '#1E2235', color: '#94A3B8' }}>+ Item</button>
             <button onClick={addFornecedor} style={{ ...btnBase, background: '#1E2235', color: '#94A3B8' }}>+ Fornecedor</button>
+            <label style={{ ...btnBase, background: '#1E2235', color: importando ? '#475569' : '#94A3B8', cursor: importando ? 'default' : 'pointer' }}>
+              {importando ? '⏳ Analisando...' : '↑ Importar cotação'}
+              <input ref={importRef} type="file" accept=".xlsx,.xls,.pdf,.jpg,.jpeg,.png,.webp" style={{ display: 'none' }} onChange={handleImportCotacao} disabled={importando} />
+            </label>
             {cotacao.status === 'aberta' && (
               <button onClick={async () => {
                 await supabase.from('cotacoes').update({ status: 'finalizada' }).eq('id', cotacao.id)
@@ -616,11 +766,69 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
         )}
       </div>
 
+      {/* Modal de confirmação de importação */}
+      {importModal && (
+        <div style={{ position: 'fixed', inset: 0, background: '#00000095', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: 16 }}>
+          <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 16, width: 560, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #1E2235' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>✅ Cotação analisada</div>
+              <div style={{ fontSize: 12, color: '#475569' }}>Confirme os dados extraídos antes de importar</div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+              {/* Dados do fornecedor */}
+              <div style={{ background: '#0F1117', border: '1px solid #1E2235', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 8, textTransform: 'uppercase' }}>Fornecedor</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
+                  <div><span style={{ color: '#475569' }}>Nome: </span><span style={{ color: '#F1F5F9', fontWeight: 600 }}>{importModal.fornecedor_nome ?? '—'}</span></div>
+                  <div><span style={{ color: '#475569' }}>Pagamento: </span><span style={{ color: '#F1F5F9' }}>{importModal.condicao_pagamento ?? '—'}</span></div>
+                  <div><span style={{ color: '#475569' }}>Prazo: </span><span style={{ color: '#F1F5F9' }}>{importModal.prazo_entrega_dias ? `${importModal.prazo_entrega_dias} dias` : '—'}</span></div>
+                  <div><span style={{ color: '#475569' }}>Frete: </span><span style={{ color: '#F1F5F9' }}>{importModal.frete ? fmtBRL(importModal.frete) : '—'}</span></div>
+                </div>
+                {importModal.observacoes && <div style={{ marginTop: 8, fontSize: 11, color: '#475569', fontStyle: 'italic' }}>{importModal.observacoes}</div>}
+              </div>
+
+              {/* Vincular a fornecedor existente */}
+              {fornecedores.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4, display: 'block' }}>Vincular a fornecedor já cadastrado na cotação (opcional)</label>
+                  <select
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #1E2235', background: '#0F1117', color: '#F1F5F9', fontSize: 12, outline: 'none' }}
+                    onChange={e => setImportModal(m => ({ ...m, _fornecedorId: e.target.value || null }))}
+                  >
+                    <option value="">— Criar novo fornecedor —</option>
+                    {fornecedores.map(f => <option key={f.id} value={f.id}>{f.fornecedor_nome}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Itens */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 8, textTransform: 'uppercase' }}>{importModal.itens?.length ?? 0} Itens</div>
+              {(importModal.itens ?? []).map((it, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 60px 80px 80px', gap: 8, marginBottom: 6, fontSize: 12 }}>
+                  <div style={{ color: '#94A3B8' }}>{it.descricao}</div>
+                  <div style={{ color: '#64748B' }}>{it.unidade}</div>
+                  <div style={{ color: '#64748B' }}>{it.quantidade} un</div>
+                  <div style={{ color: '#10B981', textAlign: 'right' }}>{fmtBRL(it.preco_unitario)}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '14px 24px', borderTop: '1px solid #1E2235', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setImportModal(null)} style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => confirmarImportacao(importModal, importModal._fornecedorId ?? null)} style={{ padding: '8px 20px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                ✓ Importar {importModal.itens?.length ?? 0} itens
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div style={{
           position: 'fixed', bottom: 24, right: 24,
-          background: '#064E3B', border: '1px solid #065F46',
-          color: '#6EE7B7', padding: '10px 18px', borderRadius: 10,
+          background: toast.type === 'loading' ? '#1E3A5F' : '#064E3B',
+          border: `1px solid ${toast.type === 'loading' ? '#3B82F6' : '#065F46'}`,
+          color: toast.type === 'loading' ? '#93C5FD' : '#6EE7B7',
+          padding: '10px 18px', borderRadius: 10,
           fontSize: 13, fontWeight: 600, zIndex: 2000,
         }}>{toast.msg}</div>
       )}
