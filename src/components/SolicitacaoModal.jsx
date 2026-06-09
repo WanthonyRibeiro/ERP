@@ -61,7 +61,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
     solicitante_nome: solicitacao?.solicitante_nome ?? userName,
     observacoes:      solicitacao?.observacoes      ?? '',
     motivo_rejeicao:  solicitacao?.motivo_rejeicao  ?? '',
-    prazo_entrega:    solicitacao?.prazo_entrega    ?? today,
+    prazo_entrega:    solicitacao?.prazo_entrega    ?? (() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString().slice(0,10) })(),
     gestao:           solicitacao?.gestao           ?? '',
   })
   const [items, setItems] = useState(
@@ -369,13 +369,31 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
               {/* Prazo de entrega */}
               <div style={{ marginBottom: 20 }}>
                 <label style={lbl}>Prazo de entrega</label>
-                <input
-                  style={locked ? inpDisabled : { ...inp, borderColor: prazoInvalido ? '#EF4444' : '#1E2235' }}
-                  type="date" min={today} disabled={locked}
-                  value={form.prazo_entrega}
-                  onChange={e => setF('prazo_entrega', e.target.value)}
-                  onBlur={e => { if (e.target.value && e.target.value < today) setF('prazo_entrega', today) }}
-                />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ position: 'relative', width: 90 }}>
+                    <input
+                      type="number" min="0" max="999"
+                      disabled={locked}
+                      value={form.prazo_entrega && today ? Math.round((new Date(form.prazo_entrega) - new Date(today)) / 86400000) : 14}
+                      onChange={e => {
+                        const dias = parseInt(e.target.value) || 0
+                        const d = new Date(today)
+                        d.setDate(d.getDate() + dias)
+                        setF('prazo_entrega', d.toISOString().slice(0,10))
+                      }}
+                      style={{ ...locked ? inpDisabled : inp, paddingRight: 30, textAlign: 'center', fontWeight: 700 }}
+                    />
+                    <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#475569', pointerEvents: 'none' }}>dias</span>
+                  </div>
+                  <span style={{ color: '#334155', fontSize: 13 }}>=</span>
+                  <input
+                    style={{ ...locked ? inpDisabled : { ...inp, borderColor: prazoInvalido ? '#EF4444' : '#1E2235' }, flex: 1 }}
+                    type="date" min={today} disabled={locked}
+                    value={form.prazo_entrega}
+                    onChange={e => setF('prazo_entrega', e.target.value)}
+                    onBlur={e => { if (e.target.value && e.target.value < today) setF('prazo_entrega', today) }}
+                  />
+                </div>
                 {prazoInvalido && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 5 }}>⚠️ Não é possível criar pedidos com prazo de entrega retroativo.</div>}
               </div>
 
