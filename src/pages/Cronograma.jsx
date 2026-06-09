@@ -154,7 +154,84 @@ function ObraGantt({ obra, session, onBack, modoFinanceiro = false }) {
     setTimeout(() => setToast(null), 3000)
   }
 
+  // ── Propagação de datas em cascata ──────────────────────────────────────
+  const [propagacaoModal, setPropagacaoModal] = useState(null)
+  // propagacaoModal = { taskOriginal, novaForm, impactadas: [{task, novoStart, novoEnd}] }
+
+  function calcDuracao(task) {
+    const s = new Date(task.start_date + 'T00:00:00')
+    const e = new Date(task.end_date   + 'T00:00:00')
+    return Math.round((e - s) / 86400000)
+  }
+
+  function addDias(dateStr, dias) {
+    const d = new Date(dateStr + 'T00:00:00')
+    d.setDate(d.getDate() + dias)
+    return d.toISOString().slice(0, 10)
+  }
+
+  // Encontra todas as tarefas impactadas em cascata a partir de uma tarefa alterada
+  function calcImpacto(taskId, novoEndDate, todasTasks) {
+    const impactadas = []
+    const visitadas = new Set()
+
+    function propagar(predId, predEnd) {
+      if (visitadas.has(predId)) return
+      visitadas.add(predId)
+      // Acha todas as tarefas que dependem de predId
+      const sucessoras = todasTasks.filter(t => t.predecessora_id === predId && t.id !== predId)
+      for (const suc of sucessoras) {
+        const lag = suc.dep_lag || 0
+        const dur = calcDuracao(suc)
+        let novoStart, novoEnd
+
+        if (suc.dep_tipo === 'SS') {
+          // Start-to-Start: começa junto com a predecessora + lag
+          const predTask = todasTasks.find(t => t.id === predId)
+          novoStart = addDias(predTask?.start_date ?? predEnd, lag)
+        } else {
+          // FS (padrão): começa 1 dia após o fim da predecessora + lag
+          novoStart = addDias(predEnd, 1 + lag)
+        }
+        novoEnd = addDias(novoStart, dur)
+
+        // Só impacta se a data realmente mudou
+        if (novoStart !== suc.start_date || novoEnd !== suc.end_date) {
+          impactadas.push({ task: suc, novoStart, novoEnd })
+          propagar(suc.id, novoEnd)
+        }
+      }
+    }
+
+    propagar(taskId, novoEndDate)
+    return impactadas
+  }
+
   async function handleSave(form) {
+    const isEdit = !!form.id
+    const taskOriginal = tasks.find(t => t.id === form.id)
+
+    // Verifica se houve mudança nas datas e se tem sucessoras
+    if (isEdit && taskOriginal) {
+      const endMudou   = form.end_date   !== taskOriginal.end_date
+      const startMudou = form.start_date !== taskOriginal.start_date
+
+      if (endMudou || startMudou) {
+        const novoEnd = form.end_date
+        const impactadas = calcImpacto(form.id, novoEnd, tasks)
+
+        if (impactadas.length > 0) {
+          // Mostra modal de propagação antes de salvar
+          setPropagacaoModal({ taskOriginal, novaForm: form, impactadas })
+          return
+        }
+      }
+    }
+
+    await salvarTask(form)
+  }
+
+  async function salvarTask(form, propagarTasks = []) {
     const payload = {
       ...form,
       obra_id: obra.id,
@@ -163,14 +240,30 @@ function ObraGantt({ obra, session, onBack, modoFinanceiro = false }) {
       dep_lag: parseInt(form.dep_lag) || 0,
     }
     delete payload.id
+
     if (form.id) {
       await supabase.from('tasks').update(payload).eq('id', form.id)
     } else {
       await supabase.from('tasks').insert(payload)
     }
+
+    // Propaga datas nas sucessoras se confirmado
+    if (propagarTasks.length > 0) {
+      for (const { task, novoStart, novoEnd } of propagarTasks) {
+        await supabase.from('tasks').update({
+          start_date: novoStart,
+          end_date:   novoEnd,
+        }).eq('id', task.id)
+      }
+    }
+
     setModal(null)
+    setPropagacaoModal(null)
     fetchTasks()
-    showToast(form.id ? 'Tarefa atualizada!' : 'Tarefa adicionada!')
+    showToast(propagarTasks.length > 0
+      ? `Tarefa atualizada! ${propagarTasks.length} tarefa(s) reprogramada(s).`
+      : form.id ? 'Tarefa atualizada!' : 'Tarefa adicionada!'
+    )
   }
 
   async function handleDelete(id) {
@@ -416,6 +509,97 @@ function ObraGantt({ obra, session, onBack, modoFinanceiro = false }) {
           extraCategories={[...new Set(tasks.map(t => t.category).filter(Boolean))]}
           allTasks={tasks}
         />
+      )}
+
+      {/* Modal de propagação de datas */}
+      {propagacaoModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: '#00000095',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1100, padding: 16,
+        }}>
+          <div style={{
+            background: '#1A1D2E', border: '1px solid #F59E0B44',
+            borderRadius: 16, padding: '28px', width: 520, maxWidth: '95vw', maxHeight: '85vh',
+            display: 'flex', flexDirection: 'column',
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
+              <div style={{ fontSize: 32, flexShrink: 0 }}>⚠️</div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', marginBottom: 6 }}>
+                  Impacto na programação detectado
+                </div>
+                <div style={{ fontSize: 13, color: '#94A3B8', lineHeight: 1.5 }}>
+                  A alteração de <strong style={{ color: '#F59E0B' }}>{propagacaoModal.taskOriginal.end_date}</strong> → <strong style={{ color: '#10B981' }}>{propagacaoModal.novaForm.end_date}</strong> em <strong style={{ color: '#F1F5F9' }}>"{propagacaoModal.taskOriginal.label}"</strong> afeta <strong style={{ color: '#F59E0B' }}>{propagacaoModal.impactadas.length} tarefa(s)</strong> dependente(s).
+                </div>
+              </div>
+            </div>
+
+            {/* Lista de impactadas */}
+            <div style={{ flex: 1, overflowY: 'auto', marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', textTransform: 'uppercase', marginBottom: 8 }}>
+                Tarefas que serão reprogramadas:
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {propagacaoModal.impactadas.map(({ task, novoStart, novoEnd }) => (
+                  <div key={task.id} style={{
+                    background: '#0F1117', border: '1px solid #1E2235',
+                    borderRadius: 8, padding: '10px 14px',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#F1F5F9', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {task.label}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, fontSize: 11 }}>
+                        <span style={{ color: '#EF4444', textDecoration: 'line-through' }}>
+                          {task.start_date} → {task.end_date}
+                        </span>
+                        <span style={{ color: '#334155' }}>→</span>
+                        <span style={{ color: '#10B981', fontWeight: 600 }}>
+                          {novoStart} → {novoEnd}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{
+                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                      background: '#451A03', color: '#F59E0B', flexShrink: 0,
+                    }}>
+                      +{Math.round((new Date(novoStart+'T00:00:00') - new Date(task.start_date+'T00:00:00')) / 86400000)}d
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Botões */}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setPropagacaoModal(null)}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: 8, border: '1px solid #1E2235',
+                  background: 'transparent', color: '#64748B', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                }}
+              >Cancelar alteração</button>
+              <button
+                onClick={() => salvarTask(propagacaoModal.novaForm, [])}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: 8, border: '1px solid #334155',
+                  background: '#1E2235', color: '#94A3B8', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                }}
+              >Salvar só esta tarefa</button>
+              <button
+                onClick={() => salvarTask(propagacaoModal.novaForm, propagacaoModal.impactadas)}
+                style={{
+                  flex: 2, padding: '10px', borderRadius: 8, border: 'none',
+                  background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+                  color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                }}
+              >✓ Atualizar todas as {propagacaoModal.impactadas.length} tarefas</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && (

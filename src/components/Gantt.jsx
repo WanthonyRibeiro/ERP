@@ -30,14 +30,14 @@ export function getCategoryColor(cat) {
 
 // ── Extrai pavimento do label da tarefa ───────────────────────────────────
 const PAVIMENTO_PATTERNS = [
-  { regex: /t[eé]rreo/i,         label: 'Térreo' },
-  { regex: /subsolo|sub.solo/i,  label: 'Subsolo' },
-  { regex: /funda[çc][aã]o/i,    label: 'Fundação' },
-  { regex: /caixa\s*d['`]?agua/i,label: "Caixa d'Água" },
-  { regex: /cobertura/i,         label: 'Cobertura' },
-  { regex: /telhado/i,           label: 'Telhado' },
-  { regex: /(\d+)[oº°]\s*pv?t?o?/i, label: (m) => `${m[1]}º Pavto` },
-  { regex: /pav(?:imento)?\s*(\d+)/i, label: (m) => `${m[1]}º Pavto` },
+  { regex: /subsolo|sub.solo/i,   label: 'Subsolo' },
+  { regex: /funda[çc][aã]o/i,     label: 'Fundação' },
+  { regex: /t[eé]rreo/i,          label: 'Térreo' },
+  { regex: /caixa\s*d['`]?agua/i, label: "Caixa d'Água" },
+  { regex: /cobertura/i,          label: 'Cobertura' },
+  { regex: /telhado/i,            label: 'Telhado' },
+  // Captura: 1º PVTO, 1º PAV, 1 PVTO, 1º PAVIMENTO, 1° PVTO etc.
+  { regex: /(\d+)[oº°]?\s*p(?:v(?:t[eo]?)?|av(?:imento)?)/i, label: (m) => `${m[1]}º Pavto` },
 ]
 
 export function extrairPavimento(label) {
