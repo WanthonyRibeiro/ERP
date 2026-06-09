@@ -25,6 +25,7 @@ const MENU = [
     label: 'Suprimentos',
     children: [
       { id: 'compras',      icon: '🛒', label: 'Compras (SC)', modulo: 'compras'      },
+      { id: 'cotacoes',     icon: '📋', label: 'Cotações',     modulo: 'cotacoes'     },
       { id: 'fornecedores', icon: '🏢', label: 'Fornecedores', modulo: 'fornecedores' },
       { id: 'estoque',      icon: '📦', label: 'Estoque',      modulo: 'estoque', soon: true },
     ],
