@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
-import Gantt, { getCategoryColor } from '../components/Gantt'
+import Gantt, { getCategoryColor, getPavimentos, extrairPavimento } from '../components/Gantt'
 import TaskModal from '../components/TaskModal'
 
 // Categorias dinâmicas — geradas a partir das tarefas carregadas
@@ -132,6 +132,8 @@ function ObraGantt({ obra, session, onBack, modoFinanceiro = false }) {
   const [tasks,   setTasks]   = useState([])
   const [modal,   setModal]   = useState(null)
   const [filter,  setFilter]  = useState('Todas')
+  const [pavFilter, setPavFilter] = useState('Todos')
+  const [zoom,    setZoom]    = useState('mes')
   const [loading, setLoading] = useState(true)
   const [toast,   setToast]   = useState(null)
 
@@ -153,7 +155,13 @@ function ObraGantt({ obra, session, onBack, modoFinanceiro = false }) {
   }
 
   async function handleSave(form) {
-    const payload = { ...form, obra_id: obra.id }
+    const payload = {
+      ...form,
+      obra_id: obra.id,
+      predecessora_id: form.predecessora_id || null,
+      dep_tipo: form.dep_tipo || 'FS',
+      dep_lag: parseInt(form.dep_lag) || 0,
+    }
     delete payload.id
     if (form.id) {
       await supabase.from('tasks').update(payload).eq('id', form.id)
@@ -340,8 +348,43 @@ function ObraGantt({ obra, session, onBack, modoFinanceiro = false }) {
 
       {/* Alertas de boletos */}
       <BoletosAlerta obraId={obra.id} />
-      {/* Filtros */}
-      <div style={{ display: 'flex', gap: 6, padding: '10px 24px', flexWrap: 'wrap', borderBottom: '1px solid #1E2235', flexShrink: 0 }}>
+      {/* Filtros — Categoria + Pavimento + Zoom */}
+      <div style={{ display: 'flex', gap: 8, padding: '10px 24px', flexWrap: 'wrap', borderBottom: '1px solid #1E2235', flexShrink: 0, alignItems: 'center' }}>
+
+        {/* Zoom */}
+        <div style={{ display: 'flex', background: '#0F1117', borderRadius: 8, border: '1px solid #1E2235', overflow: 'hidden', flexShrink: 0 }}>
+          {[
+            { id: 'dia',      label: 'Dia' },
+            { id: 'quinzena', label: 'Quinzena' },
+            { id: 'mes',      label: 'Mês' },
+            { id: 'ano',      label: 'Ano' },
+          ].map(z => (
+            <button key={z.id} onClick={() => setZoom(z.id)} style={{
+              padding: '4px 12px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+              background: zoom === z.id ? '#1E3A5F' : 'transparent',
+              color: zoom === z.id ? '#93C5FD' : '#475569',
+            }}>{z.label}</button>
+          ))}
+        </div>
+
+        <div style={{ width: 1, height: 20, background: '#1E2235', flexShrink: 0 }} />
+
+        {/* Filtro pavimento */}
+        {getPavimentos(tasks).length > 0 && (
+          <>
+            {['Todos', ...getPavimentos(tasks)].map(pav => (
+              <button key={pav} onClick={() => setPavFilter(pav)} style={{
+                padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                border: pavFilter === pav ? '1.5px solid #8B5CF6' : '1.5px solid #1E2235',
+                background: pavFilter === pav ? '#8B5CF622' : 'transparent',
+                color: pavFilter === pav ? '#A78BFA' : '#64748B',
+              }}>🏢 {pav}</button>
+            ))}
+            <div style={{ width: 1, height: 20, background: '#1E2235', flexShrink: 0 }} />
+          </>
+        )}
+
+        {/* Filtro categoria */}
         {getCategories(tasks).map(cat => {
           const active = filter === cat
           const color  = cat === 'Todas' ? '#3B82F6' : getCategoryColor(cat)
@@ -360,7 +403,7 @@ function ObraGantt({ obra, session, onBack, modoFinanceiro = false }) {
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {loading
           ? <div style={{ padding: 40, textAlign: 'center', color: '#334155', fontSize: 14 }}>Carregando...</div>
-          : <Gantt tasks={tasks} filter={filter} onTaskClick={task => setModal(task)} />
+          : <Gantt tasks={tasks} filter={filter} pavimentoFilter={pavFilter} zoom={zoom} onTaskClick={task => setModal(task)} />
         }
       </div>
 
@@ -371,6 +414,7 @@ function ObraGantt({ obra, session, onBack, modoFinanceiro = false }) {
           onDelete={handleDelete}
           onClose={() => setModal(null)}
           extraCategories={[...new Set(tasks.map(t => t.category).filter(Boolean))]}
+          allTasks={tasks}
         />
       )}
 
