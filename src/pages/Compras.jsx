@@ -116,12 +116,14 @@ export default function Compras({ session, permissoes }) {
       }
     } else {
       const { data, error } = await supabase.from('solicitacoes_compra').insert(payload).select('id').single()
-      if (error) { console.error('Erro insert:', error); return }
+      if (error) { console.error('Erro insert SC:', error); return }
       targetId = data?.id
+      console.log('✅ SC criada, id:', targetId)
       if (targetId && form.itens?.length) {
         const itensValidos = form.itens.filter(it => it.descricao?.trim())
+        console.log('📦 Inserindo itens:', itensValidos.length, itensValidos)
         if (itensValidos.length) {
-          await supabase.from('itens_solicitacao').insert(
+          const { error: errItens } = await supabase.from('itens_solicitacao').insert(
             itensValidos.map((it, idx) => ({
               solicitacao_id:      targetId,
               descricao:           it.descricao,
@@ -132,6 +134,8 @@ export default function Compras({ session, permissoes }) {
               ordem:               idx,
             }))
           )
+          if (errItens) console.error('❌ Erro insert itens:', errItens)
+          else console.log('✅ Itens inseridos com sucesso!')
         }
       }
     }
