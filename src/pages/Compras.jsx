@@ -42,14 +42,8 @@ export default function Compras({ session, permissoes }) {
 
   async function init() {
     const [{ data: obrasData }, { data: solData }] = await Promise.all([
-      (() => {
-        const isAdmin = permissoes?.isAdmin ?? true
-        let q = supabase.from('obras').select('id, nome').order('nome')
-        if (isAdmin) return q.eq('owner_id', session.user.id)
-        const ids = permissoes?.obrasIds ?? []
-        if (!ids.length) return q.eq('id', 'none')
-        return q.in('id', ids)
-      })(),
+      // RLS já filtra obras permitidas — basta buscar todas acessíveis
+      supabase.from('obras').select('id, nome').order('nome'),
       fetchSolicitacoes(true),
     ])
     setObras(obrasData ?? [])
