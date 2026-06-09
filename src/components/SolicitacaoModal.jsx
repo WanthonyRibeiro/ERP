@@ -105,9 +105,14 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
     setTimeout(() => document.activeElement?.blur(), 50)
   }
 
-  const insumosFiltrados = insumos.filter(i =>
-    !insumoSearch || i.nome.toLowerCase().includes(insumoSearch.toLowerCase()) || i.codigo.includes(insumoSearch)
-  )
+  const insumosFiltrados = insumos.filter(i => {
+    if (!insumoSearch) return true
+    const q = insumoSearch.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const nome = (i.nome ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const tipo = (i.tipo ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const codigo = (i.codigo ?? '').toLowerCase()
+    return nome.includes(q) || tipo.includes(q) || codigo.includes(q)
+  })
 
   useEffect(() => {
     if (aba === 'historico' && solicitacao?.id) loadHistorico()
@@ -432,7 +437,14 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                           style={{ ...locked ? inpDisabled : inp, padding: '7px 10px', flex: 1 }}
                           disabled={locked}
                           value={it.descricao}
-                          onChange={e => setItem(it.id, 'descricao', e.target.value)}
+                          onChange={e => {
+                            setItem(it.id, 'descricao', e.target.value)
+                            if (form.gestao && !locked) {
+                              setInsumoSearch(e.target.value)
+                              setShowInsumoSearch(it.id)
+                            }
+                          }}
+                          onBlur={() => setTimeout(() => setShowInsumoSearch(null), 200)}
                           placeholder="Material ou serviço"
                         />
                         {form.gestao && !locked && (
