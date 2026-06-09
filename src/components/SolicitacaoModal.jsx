@@ -101,6 +101,8 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
     } : i))
     setShowInsumoSearch(null)
     setInsumoSearch('')
+    // Força blur para evitar reabrir dropdown
+    setTimeout(() => document.activeElement?.blur(), 50)
   }
 
   const insumosFiltrados = insumos.filter(i =>
@@ -393,6 +395,11 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                     onChange={e => setF('prazo_entrega', e.target.value)}
                     onBlur={e => { if (e.target.value && e.target.value < today) setF('prazo_entrega', today) }}
                   />
+                  {form.prazo_entrega && (
+                    <span style={{ fontSize: 12, color: '#64748B', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                      {new Date(form.prazo_entrega + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}
+                    </span>
+                  )}
                 </div>
                 {prazoInvalido && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 5 }}>⚠️ Não é possível criar pedidos com prazo de entrega retroativo.</div>}
               </div>
@@ -420,14 +427,21 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                   <div key={it.id} style={{ marginBottom: 10, background: '#0F1117', border: '1px solid #1E2235', borderRadius: 8, padding: '10px' }}>
                     {/* Linha 1: Descrição full width */}
                     <div style={{ position: 'relative', marginBottom: 8 }}>
-                      <input
-                        style={{ ...locked ? inpDisabled : inp, padding: '7px 10px', width: '100%' }}
-                        disabled={locked}
-                        value={it.descricao}
-                        onChange={e => setItem(it.id, 'descricao', e.target.value)}
-                        onFocus={() => form.gestao && !locked && setShowInsumoSearch(it.id)}
-                        placeholder={form.gestao ? '🔍 Digite ou busque no catálogo...' : 'Material ou serviço'}
-                      />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input
+                          style={{ ...locked ? inpDisabled : inp, padding: '7px 10px', flex: 1 }}
+                          disabled={locked}
+                          value={it.descricao}
+                          onChange={e => setItem(it.id, 'descricao', e.target.value)}
+                          placeholder="Material ou serviço"
+                        />
+                        {form.gestao && !locked && (
+                          <button
+                            onMouseDown={e => { e.preventDefault(); setShowInsumoSearch(showInsumoSearch === it.id ? null : it.id); setInsumoSearch('') }}
+                            style={{ padding: '7px 12px', borderRadius: 7, border: '1px solid #1E3A5F', background: showInsumoSearch === it.id ? '#1E3A5F' : 'transparent', color: '#3B82F6', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                          >🔍 Catálogo</button>
+                        )}
+                      </div>
                       {/* Dropdown de insumos */}
                       {showInsumoSearch === it.id && insumos.length > 0 && (
                         <div style={{
