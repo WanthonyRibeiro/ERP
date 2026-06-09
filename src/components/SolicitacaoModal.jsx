@@ -450,7 +450,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                               setShowInsumoSearch(it.id)
                             }
                           }}
-                          onBlur={() => setTimeout(() => setShowInsumoSearch(null), 200)}
+                          onBlur={() => setTimeout(() => setShowInsumoSearch(null), 400)}
                           placeholder="Material ou serviço"
                         />
                         {form.gestao && !locked && (
