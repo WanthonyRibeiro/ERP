@@ -205,6 +205,8 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
 
   function handleSave(statusOverride) {
     if (!form.titulo || !form.obra_id || !form.gestao) return
+    console.log('🔍 handleSave items:', items)
+    console.log('🔍 itens filtrados:', items.filter(i => i.descricao?.trim()))
     onSave({
       ...solicitacao,
       ...form,
