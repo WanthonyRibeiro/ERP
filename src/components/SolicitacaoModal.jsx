@@ -84,7 +84,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
       ? ['Administrativo', 'Projetos', 'Jurídico', 'Financeiro', 'RH', 'Geral']
       : ['Estrutura', 'Alvenaria', 'Hidráulica', 'Elétrica', 'Acabamento', 'Pintura', 'Cobertura', 'Impermeabilização', 'Instalações', 'Esquadrias', 'Externo', 'Logística', 'Locações']
     const { data } = await supabase.from('insumos')
-      .select('id, codigo, nome, unidade_compra, unidade_uso, fator_conversao, preco_referencia')
+      .select('id, codigo, nome, tipo, unidade_compra, unidade_uso, fator_conversao, comprimento_m, preco_referencia')
       .in('categoria', categorias)
       .eq('ativo', true)
       .order('nome')
