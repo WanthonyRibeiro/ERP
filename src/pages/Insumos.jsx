@@ -526,6 +526,8 @@ export default function Insumos({ session }) {
     setHistDados(precos ?? [])
     setHistLoading(false)
   }
+
+  async function handleSave(form) {
     const payload = {
       ...form,
       fator_conversao:  parseFloat(form.fator_conversao)  || null,
