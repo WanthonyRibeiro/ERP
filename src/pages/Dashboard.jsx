@@ -386,4 +386,3 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
     </div>
   )
 }
-    </div>
