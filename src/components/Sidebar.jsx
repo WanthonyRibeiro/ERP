@@ -87,7 +87,8 @@ export default function Sidebar({ active, onChange, userEmail, session }) {
   }
 
   function canSee(item) {
-    if (item.id === 'configuracoes') return true // sempre visível
+    if (item.id === 'configuracoes') return true
+    if (item.id === 'dashboard') return true  // sempre visível
     if (item.adminOnly) return isAdmin
     if (item.soon) return false
     if (!perms) return false
