@@ -334,7 +334,111 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
             })}
           </Card>
         </div>
+        </div>
       </div>
     </div>
   )
 }
+          <Card style={{ gridColumn: '1 / -1' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>📋 Lista de Pendências</div>
+              <span style={{ fontSize: 11, color: '#475569' }}>{[
+                ...scsPendentes.map(sc => 1),
+                ...tasksAtrasadas.map(t => 1),
+                ...cotacoes.filter(c => Math.round((hoje - new Date(c.created_at)) / 86400000) > 7).map(c => 1),
+              ].length} pendência(s)</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+              {/* SCs pendentes */}
+              {scsPendentes.map(sc => {
+                const urg = URGENCIA_META[sc.urgencia] ?? URGENCIA_META.normal
+                const vencida = sc.prazo_entrega && sc.prazo_entrega < hoje.toISOString().slice(0,10)
+                return (
+                  <div key={sc.id} onClick={() => onNavigate?.('compras')} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
+                    background: '#0F1117', border: '1px solid #1E2235',
+                    transition: 'border-color 0.15s',
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#334155'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = '#1E2235'}
+                  >
+                    <span style={{ fontSize: 15, flexShrink: 0 }}>🛒</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#F1F5F9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        SC aguardando aprovação — {sc.titulo}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+                        {obrasMap[sc.obra_id]?.nome ?? '—'} · {sc.solicitante_nome}
+                        {vencida && <span style={{ color: '#EF4444', marginLeft: 6 }}>· Prazo vencido</span>}
+                      </div>
+                    </div>
+                    <span style={{ padding: '2px 8px', borderRadius: 6, background: urg.bg, color: urg.color, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{urg.label}</span>
+                  </div>
+                )
+              })}
+
+              {/* Tarefas atrasadas */}
+              {tasksAtrasadas.map(t => {
+                const atraso = diasAtraso(t.end_date)
+                return (
+                  <div key={t.id} onClick={() => onNavigate?.('cronograma')} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
+                    background: '#0F1117', border: '1px solid #1E2235',
+                    transition: 'border-color 0.15s',
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#334155'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = '#1E2235'}
+                  >
+                    <span style={{ fontSize: 15, flexShrink: 0 }}>📅</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#F1F5F9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        Tarefa atrasada — {t.label}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+                        {obrasMap[t.obra_id]?.nome ?? '—'} · Previsão: {fmtDate(t.end_date)}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#EF4444', flexShrink: 0 }}>+{atraso}d</span>
+                  </div>
+                )
+              })}
+
+              {/* Cotações abertas há mais de 7 dias */}
+              {cotacoes.filter(c => Math.round((hoje - new Date(c.created_at)) / 86400000) > 7).map(c => {
+                const dias = Math.round((hoje - new Date(c.created_at)) / 86400000)
+                return (
+                  <div key={c.id} onClick={() => onNavigate?.('cotacoes')} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
+                    background: '#0F1117', border: '1px solid #1E2235',
+                    transition: 'border-color 0.15s',
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#334155'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = '#1E2235'}
+                  >
+                    <span style={{ fontSize: 15, flexShrink: 0 }}>📊</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#F1F5F9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        Cotação sem resposta — {c.titulo}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+                        {obrasMap[c.obra_id]?.nome ?? '—'} · Aberta há {dias} dias
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#F59E0B', flexShrink: 0 }}>⚠️ {dias}d</span>
+                  </div>
+                )
+              })}
+
+              {/* Nenhuma pendência */}
+              {scsPendentes.length === 0 && tasksAtrasadas.length === 0 && cotacoes.filter(c => Math.round((hoje - new Date(c.created_at)) / 86400000) > 7).length === 0 && (
+                <div style={{ textAlign: 'center', padding: '24px 0', color: '#334155' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+                  <div style={{ fontSize: 13, color: '#475569', fontWeight: 600 }}>Tudo em dia! Nenhuma pendência.</div>
+                </div>
+              )}
+            </div>
+          </Card>
