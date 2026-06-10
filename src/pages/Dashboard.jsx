@@ -155,6 +155,9 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
   const horaAtual = new Date().getHours()
   const saudacao = horaAtual < 12 ? 'Bom dia' : horaAtual < 18 ? 'Boa tarde' : 'Boa noite'
 
+  const cotacoesVencidas = cotacoes.filter(c => Math.round((hoje - new Date(c.created_at)) / 86400000) > 7)
+  const totalPendencias = scsPendentes.length + tasksAtrasadas.length + cotacoesVencidas.length
+
   const URGENCIA_META = {
     critica:  { label: 'Crítica',  color: '#EF4444', bg: '#450A0A' },
     alta:     { label: 'Alta',     color: '#F59E0B', bg: '#451A03' },
@@ -339,11 +342,7 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
         <Card style={{ marginTop: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>📋 Lista de Pendências</div>
-              <span style={{ fontSize: 11, color: '#475569' }}>{[
-                ...scsPendentes.map(sc => 1),
-                ...tasksAtrasadas.map(t => 1),
-                ...cotacoes.filter(c => Math.round((hoje - new Date(c.created_at)) / 86400000) > 7).map(c => 1),
-              ].length} pendência(s)</span>
+              <span style={{ fontSize: 11, color: '#475569' }}>{totalPendencias} pendência(s)</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
 
@@ -404,7 +403,7 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
               })}
 
               {/* Cotações abertas há mais de 7 dias */}
-              {cotacoes.filter(c => Math.round((hoje - new Date(c.created_at)) / 86400000) > 7).map(c => {
+              {cotacoesVencidas.map(c => {
                 const dias = Math.round((hoje - new Date(c.created_at)) / 86400000)
                 return (
                   <div key={c.id} onClick={() => onNavigate?.('cotacoes')} style={{
@@ -431,7 +430,7 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
               })}
 
               {/* Nenhuma pendência */}
-              {scsPendentes.length === 0 && tasksAtrasadas.length === 0 && cotacoes.filter(c => Math.round((hoje - new Date(c.created_at)) / 86400000) > 7).length === 0 && (
+              {totalPendencias === 0 && (
                 <div style={{ textAlign: 'center', padding: '24px 0', color: '#334155' }}>
                   <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
                   <div style={{ fontSize: 13, color: '#475569', fontWeight: 600 }}>Tudo em dia! Nenhuma pendência.</div>
