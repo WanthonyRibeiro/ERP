@@ -3,6 +3,12 @@ import { supabase } from '../lib/supabase'
 
 const MENU = [
   {
+    id: 'dashboard',
+    icon: '📊',
+    label: 'Dashboard',
+    modulo: 'dashboard',
+  },
+  {
     id: 'obras',
     icon: '🏗️',
     label: 'Obras',

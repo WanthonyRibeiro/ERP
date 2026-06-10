@@ -9,6 +9,7 @@ import Configuracoes from './pages/Configuracoes'
 import Fornecedores from './pages/Fornecedores'
 import Cotacoes from './pages/Cotacoes'
 import Insumos from './pages/Insumos'
+import Dashboard from './pages/Dashboard'
 import { usePermissoes } from './lib/usePermissoes'
 import FeedbackButton from './components/FeedbackButton'
 import Sidebar from './components/Sidebar'
@@ -16,7 +17,7 @@ import Sidebar from './components/Sidebar'
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [module,  setModule]  = useState('obras')
+  const [module,  setModule]  = useState('dashboard')
   const permissoes = usePermissoes(session)
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export default function App() {
       `}</style>
       <Sidebar active={module} onChange={setModule} userEmail={session.user.email} session={session} />
       <div className="sa-main-content" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {module === 'dashboard'    && <Dashboard    session={session} permissoes={permissoes} onNavigate={setModule} />}
         {module === 'obras'         && <Obras         session={session} permissoes={permissoes} />}
         {module === 'cronograma'    && <Cronograma    session={session} permissoes={permissoes} />}
         {module === 'medicoes'      && <Financeiro    session={session} permissoes={permissoes} abaInicial="medicoes"  />}

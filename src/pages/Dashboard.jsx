@@ -1,276 +1,340 @@
 import { useState, useEffect } from 'react'
-import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
-import Gantt, { CATEGORY_COLORS } from '../components/Gantt'
-import TaskModal from '../components/TaskModal'
 
-// Converts Excel serial date to YYYY-MM-DD string
-function excelDateToISO(val) {
-  if (typeof val === 'string' && /\d{4}-\d{2}-\d{2}/.test(val)) return val
-  if (val instanceof Date) return val.toISOString().slice(0, 10)
-  if (typeof val === 'number') {
-    const d = new Date(Math.round((val - 25569) * 86400 * 1000))
-    return d.toISOString().slice(0, 10)
-  }
-  return String(val)
+function fmtDate(d) {
+  if (!d) return '—'
+  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
-const CATEGORIES = ['Todas', ...Object.keys(CATEGORY_COLORS)]
+function diasAtraso(endDate) {
+  const hoje = new Date(); hoje.setHours(0,0,0,0)
+  const fim = new Date(endDate + 'T00:00:00')
+  return Math.round((hoje - fim) / 86400000)
+}
 
-export default function Dashboard({ session }) {
-  const [tasks,      setTasks]      = useState([])
-  const [projectId,  setProjectId]  = useState(null)
-  const [loading,    setLoading]    = useState(true)
-  const [modal,      setModal]      = useState(null) // null | task object (empty = new)
-  const [filter,     setFilter]     = useState('Todas')
-  const [toast,      setToast]      = useState(null)
+// ── Card base ─────────────────────────────────────────────────────────────
+function Card({ children, style = {} }) {
+  return (
+    <div style={{
+      background: '#1A1D2E', border: '1px solid #1E2235',
+      borderRadius: 12, padding: '18px 20px', ...style
+    }}>
+      {children}
+    </div>
+  )
+}
 
-  // ── Bootstrap: get or create default project ──────────────────────────────
-  useEffect(() => {
-    async function init() {
-      let { data: projects } = await supabase
-        .from('projects').select('id').eq('owner_id', session.user.id).limit(1)
+// ── Stat card ─────────────────────────────────────────────────────────────
+function StatCard({ icon, label, value, sub, color = '#3B82F6', onClick, alert }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: '#1A1D2E',
+        border: `1px solid ${alert ? color + '44' : '#1E2235'}`,
+        borderRadius: 12, padding: '18px 20px',
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'border-color 0.15s, background 0.15s',
+        position: 'relative', overflow: 'hidden',
+      }}
+      onMouseEnter={e => { if (onClick) e.currentTarget.style.borderColor = color + '66' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = alert ? color + '44' : '#1E2235' }}
+    >
+      {alert && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+          background: `linear-gradient(90deg, ${color}, ${color}88)`,
+        }} />
+      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <div style={{ fontSize: 11, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>{label}</div>
+          <div style={{ fontSize: 32, fontWeight: 800, color, letterSpacing: '-1px', lineHeight: 1 }}>{value}</div>
+          {sub && <div style={{ fontSize: 12, color: '#475569', marginTop: 6 }}>{sub}</div>}
+        </div>
+        <div style={{ fontSize: 28, opacity: 0.6 }}>{icon}</div>
+      </div>
+    </div>
+  )
+}
 
-      let pid = projects?.[0]?.id
+export default function Dashboard({ session, permissoes, onNavigate }) {
+  const [dados, setDados] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const hoje = new Date(); hoje.setHours(0,0,0,0)
 
-      if (!pid) {
-        const { data } = await supabase.from('projects')
-          .insert({ name: 'Gênova', owner_id: session.user.id })
-          .select('id').single()
-        pid = data?.id
-      }
+  useEffect(() => { load() }, [])
 
-      setProjectId(pid)
-      await fetchTasks(pid)
-      setLoading(false)
-    }
-    init()
-  }, [])
+  async function load() {
+    setLoading(true)
+    const [
+      { data: obras },
+      { data: scs },
+      { data: tasks },
+      { data: cotacoes },
+    ] = await Promise.all([
+      supabase.from('obras').select('id, nome, status'),
+      supabase.from('solicitacoes_compra').select('id, titulo, status, urgencia, prazo_entrega, obra_id, gestao, solicitante_nome, created_at').order('created_at', { ascending: false }),
+      supabase.from('tasks').select('id, label, start_date, end_date, progress, obra_id').order('start_date'),
+      supabase.from('cotacoes').select('id, titulo, status, obra_id, created_at').eq('status', 'aberta'),
+    ])
 
-  async function fetchTasks(pid) {
-    const { data } = await supabase
-      .from('tasks').select('*')
-      .eq('project_id', pid ?? projectId)
-      .order('start_date')
-    setTasks(data ?? [])
+    // Processa dados
+    const obrasMap = {}
+    ;(obras ?? []).forEach(o => { obrasMap[o.id] = o })
+
+    const scsPendentes   = (scs ?? []).filter(s => s.status === 'pendente')
+    const scsCriticas    = scsPendentes.filter(s => s.urgencia === 'critica')
+    const scsVencidas    = scsPendentes.filter(s => s.prazo_entrega && s.prazo_entrega < hoje.toISOString().slice(0,10))
+
+    const tasksAtivas    = (tasks ?? []).filter(t => t.progress > 0 && t.progress < 100)
+    const tasksAtrasadas = (tasks ?? []).filter(t => {
+      if (t.progress >= 100) return false
+      const fim = new Date(t.end_date + 'T00:00:00')
+      return fim < hoje
+    })
+    const tasksHoje      = (tasks ?? []).filter(t => {
+      if (t.progress >= 100) return false
+      const ini = new Date(t.start_date + 'T00:00:00')
+      const fim = new Date(t.end_date   + 'T00:00:00')
+      return ini <= hoje && fim >= hoje
+    })
+
+    // Alertas
+    const alertas = []
+
+    if (scsCriticas.length) alertas.push({
+      tipo: 'critico', icon: '🚨',
+      msg: `${scsCriticas.length} SC${scsCriticas.length > 1 ? 's' : ''} com urgência crítica aguardando aprovação`,
+      acao: 'compras',
+    })
+    if (scsVencidas.length) alertas.push({
+      tipo: 'aviso', icon: '⚠️',
+      msg: `${scsVencidas.length} SC${scsVencidas.length > 1 ? 's' : ''} com prazo de entrega vencido`,
+      acao: 'compras',
+    })
+    if (tasksAtrasadas.length) alertas.push({
+      tipo: 'aviso', icon: '📅',
+      msg: `${tasksAtrasadas.length} tarefa${tasksAtrasadas.length > 1 ? 's' : ''} atrasada${tasksAtrasadas.length > 1 ? 's' : ''} no cronograma`,
+      acao: 'cronograma',
+    })
+    if ((cotacoes ?? []).length) alertas.push({
+      tipo: 'info', icon: '📊',
+      msg: `${cotacoes.length} cotação${cotacoes.length > 1 ? 'ões' : ''} aberta${cotacoes.length > 1 ? 's' : ''} aguardando resposta`,
+      acao: 'cotacoes',
+    })
+
+    setDados({
+      obras: obras ?? [],
+      obrasMap,
+      scsPendentes,
+      scsCriticas,
+      scsVencidas,
+      tasksAtrasadas,
+      tasksHoje,
+      tasksAtivas,
+      cotacoes: cotacoes ?? [],
+      alertas,
+      ultimasSCs: (scs ?? []).slice(0, 5),
+      scs: scs ?? [],
+    })
+    setLoading(false)
   }
 
-  function showToast(msg, type = 'success') {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3000)
-  }
-
-  // ── CRUD ──────────────────────────────────────────────────────────────────
-  async function handleSave(form) {
-    const payload = { ...form, project_id: projectId }
-    delete payload.id
-
-    if (form.id) {
-      await supabase.from('tasks').update(payload).eq('id', form.id)
-      showToast('Tarefa atualizada!')
-    } else {
-      await supabase.from('tasks').insert(payload)
-      showToast('Tarefa adicionada!')
-    }
-
-    setModal(null)
-    fetchTasks()
-  }
-
-  async function handleDelete(id) {
-    await supabase.from('tasks').delete().eq('id', id)
-    setModal(null)
-    fetchTasks()
-    showToast('Tarefa excluída.', 'info')
-  }
-
-  // ── Import ─────────────────────────────────────────────────────────────────
-  async function handleImport(e) {
-    const file = e.target.files[0]
-    if (!file) return
-    const buf  = await file.arrayBuffer()
-    const wb   = XLSX.read(buf, { cellDates: true })
-    const ws   = wb.Sheets[wb.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' })
-
-    const toInsert = []
-    // Skip header row if first cell looks like a header
-    const startRow = (rows[0] && typeof rows[0][0] === 'string' && rows[0][0].toLowerCase().includes('tare')) ? 1 : 0
-
-    for (let i = startRow; i < rows.length; i++) {
-      const row = rows[i]
-      const cells = row.filter(c => c !== null && c !== undefined && c !== '')
-      if (cells.length < 3) continue
-
-      // Label: first string cell with meaningful length
-      const label = row.find(c => typeof c === 'string' && c.trim().length > 3 && !/^\d{4}-\d{2}-\d{2}$/.test(c.trim()))?.trim()
-      if (!label) continue
-
-      // Category: second string cell (if exists and not a date)
-      const strings = row.filter(c => typeof c === 'string' && c.trim().length > 0 && !/^\d{4}-\d{2}-\d{2}$/.test(c.trim()))
-      const category = strings.length > 1 ? strings[1] : 'Geral'
-
-      // Dates: cells matching yyyy-mm-dd
-      const dates = row.filter(c => typeof c === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(c.trim()))
-      if (dates.length < 2) continue
-
-      toInsert.push({
-        project_id: projectId,
-        label,
-        category,
-        start_date: dates[0],
-        end_date:   dates[1],
-        progress:   0,
-      })
-    }
-
-    if (toInsert.length) {
-      await supabase.from('tasks').insert(toInsert)
-      await fetchTasks()
-      showToast(`${toInsert.length} tarefas importadas!`)
-    } else {
-      showToast('Nenhuma tarefa encontrada no arquivo.', 'warn')
-    }
-    e.target.value = ''
-  }
-
-  // ── Export ─────────────────────────────────────────────────────────────────
-  function handleExport() {
-    const rows = tasks.map(t => ({
-      Tarefa:       t.label,
-      Categoria:    t.category,
-      Início:       t.start_date,
-      Fim:          t.end_date,
-      Progresso:    `${t.progress}%`,
-      Responsável:  t.responsible ?? '',
-      Observações:  t.notes ?? '',
-    }))
-    const ws = XLSX.utils.json_to_sheet(rows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Cronograma')
-    XLSX.writeFile(wb, 'Cronograma_Genova.xlsx')
-    showToast('Arquivo exportado!')
-  }
-
-  // ── Render ─────────────────────────────────────────────────────────────────
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#0F1117', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: '#475569', fontSize: 14 }}>Carregando tarefas...</div>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#334155', fontSize: 14, background: '#0F1117' }}>
+      Carregando dashboard...
     </div>
   )
 
-  const btnBase = {
-    padding: '7px 14px', borderRadius: 8, border: 'none',
-    fontSize: 12, fontWeight: 600, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', gap: 5,
+  const { obras, scsPendentes, scsCriticas, scsVencidas, tasksAtrasadas, tasksHoje, cotacoes, alertas, ultimasSCs, obrasMap, tasksAtivas } = dados
+
+  const obrasEmAndamento = obras.filter(o => o.status === 'em_andamento').length
+  const userName = session?.user?.user_metadata?.nome ?? session?.user?.email?.split('@')[0] ?? 'você'
+
+  const horaAtual = new Date().getHours()
+  const saudacao = horaAtual < 12 ? 'Bom dia' : horaAtual < 18 ? 'Boa tarde' : 'Boa noite'
+
+  const URGENCIA_META = {
+    critica:  { label: 'Crítica',  color: '#EF4444', bg: '#450A0A' },
+    alta:     { label: 'Alta',     color: '#F59E0B', bg: '#451A03' },
+    normal:   { label: 'Normal',   color: '#3B82F6', bg: '#1E3A5F' },
+    baixa:    { label: 'Baixa',    color: '#64748B', bg: '#1E2235' },
   }
 
-  const totalTasks    = tasks.length
-  const doneTasks     = tasks.filter(t => t.progress === 100).length
-  const inProgressTasks = tasks.filter(t => t.progress > 0 && t.progress < 100).length
-
   return (
-    <div style={{ minHeight: '100vh', background: '#0F1117', color: '#E2E8F0', fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: '#0F1117', color: '#E2E8F0', fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px' }}>
 
-      {/* Header */}
-      <div style={{
-        background: '#1A1D2E', borderBottom: '1px solid #1E2235',
-        padding: '14px 24px', display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 8,
-            background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 17, fontWeight: 800, color: '#fff',
-          }}>G</div>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9' }}>Gênova Cronograma</div>
-            <div style={{ fontSize: 11, color: '#475569' }}>{session.user.email}</div>
+        {/* Header */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#F1F5F9' }}>
+            {saudacao}, {userName} 👋
+          </div>
+          <div style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>
+            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => setModal({})} style={{ ...btnBase, background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff' }}>
-            + Nova Tarefa
-          </button>
-
-          {/* Import */}
-          <label style={{ ...btnBase, background: '#1E2235', color: '#94A3B8', cursor: 'pointer' }}>
-            ↑ Importar Excel
-            <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImport} />
-          </label>
-
-          <button onClick={handleExport} style={{ ...btnBase, background: '#1E2235', color: '#94A3B8' }}>
-            ↓ Exportar Excel
-          </button>
-
-          <button onClick={() => supabase.auth.signOut()} style={{ ...btnBase, background: 'transparent', color: '#475569', border: '1px solid #1E2235' }}>
-            Sair
-          </button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div style={{ display: 'flex', gap: 12, padding: '14px 24px', borderBottom: '1px solid #1E2235' }}>
-        {[
-          { label: 'Total',       value: totalTasks,      color: '#3B82F6' },
-          { label: 'Em andamento', value: inProgressTasks, color: '#F59E0B' },
-          { label: 'Concluídas',  value: doneTasks,        color: '#10B981' },
-        ].map(s => (
-          <div key={s.label} style={{
-            background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 10,
-            padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <span style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.value}</span>
-            <span style={{ fontSize: 12, color: '#475569' }}>{s.label}</span>
+        {/* Alertas */}
+        {alertas.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+            {alertas.map((al, i) => (
+              <div
+                key={i}
+                onClick={() => onNavigate?.(al.acao)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
+                  background: al.tipo === 'critico' ? '#450A0A' : al.tipo === 'aviso' ? '#451A03' : '#1E3A5F',
+                  border: `1px solid ${al.tipo === 'critico' ? '#7F1D1D' : al.tipo === 'aviso' ? '#78350F' : '#1E3A5F'}`,
+                  transition: 'opacity 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              >
+                <span style={{ fontSize: 18 }}>{al.icon}</span>
+                <span style={{ fontSize: 13, color: al.tipo === 'critico' ? '#FCA5A5' : al.tipo === 'aviso' ? '#FCD34D' : '#93C5FD', flex: 1 }}>{al.msg}</span>
+                <span style={{ fontSize: 11, color: '#475569' }}>Ver →</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        )}
 
-      {/* Category filter */}
-      <div style={{ display: 'flex', gap: 6, padding: '12px 24px', flexWrap: 'wrap', borderBottom: '1px solid #1E2235' }}>
-        {CATEGORIES.map(cat => {
-          const active = filter === cat
-          const color  = cat === 'Todas' ? '#3B82F6' : CATEGORY_COLORS[cat]
-          return (
-            <button key={cat} onClick={() => setFilter(cat)} style={{
-              padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              border: active ? `1.5px solid ${color}` : '1.5px solid #1E2235',
-              background: active ? `${color}22` : 'transparent',
-              color: active ? color : '#64748B',
-            }}>{cat}</button>
-          )
-        })}
-      </div>
-
-      {/* Gantt */}
-      <Gantt tasks={tasks} filter={filter} onTaskClick={task => setModal(task)} />
-
-      {/* Modal */}
-      {modal !== null && (
-        <TaskModal
-          task={modal.id ? modal : null}
-          onSave={handleSave}
-          onDelete={handleDelete}
-          onClose={() => setModal(null)}
-        />
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24,
-          background: toast.type === 'success' ? '#064E3B' : toast.type === 'warn' ? '#451A03' : '#1E2235',
-          border: `1px solid ${toast.type === 'success' ? '#065F46' : toast.type === 'warn' ? '#92400E' : '#334155'}`,
-          color: toast.type === 'success' ? '#6EE7B7' : toast.type === 'warn' ? '#FCD34D' : '#94A3B8',
-          padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-          boxShadow: '0 8px 24px #00000060', zIndex: 2000,
-        }}>
-          {toast.msg}
+        {/* Stats principais */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
+          <StatCard icon="🏗️" label="Obras em andamento" value={obrasEmAndamento} color="#3B82F6" onClick={() => onNavigate?.('obras')} />
+          <StatCard icon="🛒" label="SCs pendentes" value={scsPendentes.length} color={scsCriticas.length ? '#EF4444' : '#F59E0B'} alert={scsCriticas.length > 0} sub={scsCriticas.length ? `${scsCriticas.length} crítica${scsCriticas.length > 1 ? 's' : ''}` : undefined} onClick={() => onNavigate?.('compras')} />
+          <StatCard icon="📅" label="Tarefas atrasadas" value={tasksAtrasadas.length} color={tasksAtrasadas.length > 0 ? '#EF4444' : '#10B981'} alert={tasksAtrasadas.length > 0} sub={tasksHoje.length ? `${tasksHoje.length} em andamento hoje` : 'Nenhum atraso'} onClick={() => onNavigate?.('cronograma')} />
+          <StatCard icon="📊" label="Cotações abertas" value={cotacoes.length} color="#8B5CF6" onClick={() => onNavigate?.('cotacoes')} />
         </div>
-      )}
+
+        {/* Grid de detalhes */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+
+          {/* SCs pendentes */}
+          <Card>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>🛒 SCs aguardando aprovação</div>
+              <button onClick={() => onNavigate?.('compras')} style={{ background: 'none', border: 'none', color: '#3B82F6', fontSize: 12, cursor: 'pointer' }}>Ver todas →</button>
+            </div>
+            {scsPendentes.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#334155', fontSize: 13 }}>✅ Nenhuma SC pendente</div>
+            ) : scsPendentes.slice(0, 5).map(sc => {
+              const urg = URGENCIA_META[sc.urgencia] ?? URGENCIA_META.normal
+              const obra = obrasMap[sc.obra_id]
+              const vencida = sc.prazo_entrega && sc.prazo_entrega < hoje.toISOString().slice(0,10)
+              return (
+                <div key={sc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid #161929' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#F1F5F9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sc.titulo}</div>
+                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+                      {obra?.nome ?? '—'} · {sc.solicitante_nome}
+                      {sc.gestao && <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, background: sc.gestao === 'GA' ? '#1E3A5F' : '#064E3B', color: sc.gestao === 'GA' ? '#93C5FD' : '#6EE7B7', fontSize: 10 }}>{sc.gestao}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                    <span style={{ padding: '2px 8px', borderRadius: 6, background: urg.bg, color: urg.color, fontSize: 10, fontWeight: 700 }}>{urg.label}</span>
+                    {vencida && <span style={{ fontSize: 10, color: '#EF4444' }}>⚠️ Prazo vencido</span>}
+                  </div>
+                </div>
+              )
+            })}
+            {scsPendentes.length > 5 && (
+              <div style={{ paddingTop: 10, fontSize: 12, color: '#475569', textAlign: 'center' }}>+{scsPendentes.length - 5} mais</div>
+            )}
+          </Card>
+
+          {/* Tarefas atrasadas */}
+          <Card>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>📅 Cronograma</div>
+              <button onClick={() => onNavigate?.('cronograma')} style={{ background: 'none', border: 'none', color: '#3B82F6', fontSize: 12, cursor: 'pointer' }}>Ver →</button>
+            </div>
+
+            {/* Mini stats do cronograma */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
+              {[
+                { label: 'Em andamento', value: tasksAtivas.length, color: '#3B82F6' },
+                { label: 'Atrasadas', value: tasksAtrasadas.length, color: tasksAtrasadas.length > 0 ? '#EF4444' : '#10B981' },
+                { label: 'Hoje', value: tasksHoje.length, color: '#F59E0B' },
+              ].map(s => (
+                <div key={s.label} style={{ background: '#0F1117', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
+                  <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {tasksAtrasadas.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '12px 0', color: '#334155', fontSize: 13 }}>✅ Sem atrasos no cronograma</div>
+            ) : tasksAtrasadas.slice(0, 4).map(t => {
+              const atraso = diasAtraso(t.end_date)
+              const obra = obrasMap[t.obra_id]
+              return (
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #161929' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#F1F5F9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.label}</div>
+                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{obra?.nome ?? '—'} · Previsão: {fmtDate(t.end_date)}</div>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#EF4444', flexShrink: 0 }}>+{atraso}d</span>
+                </div>
+              )
+            })}
+            {tasksAtrasadas.length > 4 && (
+              <div style={{ paddingTop: 10, fontSize: 12, color: '#475569', textAlign: 'center' }}>+{tasksAtrasadas.length - 4} mais atrasadas</div>
+            )}
+          </Card>
+
+          {/* Obras */}
+          <Card>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>🏗️ Obras</div>
+              <button onClick={() => onNavigate?.('obras')} style={{ background: 'none', border: 'none', color: '#3B82F6', fontSize: 12, cursor: 'pointer' }}>Ver todas →</button>
+            </div>
+            {obras.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#334155', fontSize: 13 }}>Nenhuma obra cadastrada</div>
+            ) : obras.map(o => {
+              const STATUS = { em_andamento: { label: 'Em andamento', color: '#10B981', bg: '#064E3B' }, pausada: { label: 'Pausada', color: '#F59E0B', bg: '#451A03' }, concluida: { label: 'Concluída', color: '#6366F1', bg: '#1E1B4B' } }
+              const s = STATUS[o.status] ?? STATUS.em_andamento
+              const scsDaObra = dados.scs.filter(sc => sc.obra_id === o.id && sc.status === 'pendente').length
+              return (
+                <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid #161929' }}>
+                  <div style={{ fontSize: 20 }}>🏗️</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#F1F5F9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.nome}</div>
+                    {scsDaObra > 0 && <div style={{ fontSize: 11, color: '#F59E0B', marginTop: 2 }}>{scsDaObra} SC{scsDaObra > 1 ? 's' : ''} pendente{scsDaObra > 1 ? 's' : ''}</div>}
+                  </div>
+                  <span style={{ padding: '2px 10px', borderRadius: 20, background: s.bg, color: s.color, fontSize: 10, fontWeight: 600 }}>{s.label}</span>
+                </div>
+              )
+            })}
+          </Card>
+
+          {/* Cotações abertas */}
+          <Card>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>📊 Cotações abertas</div>
+              <button onClick={() => onNavigate?.('cotacoes')} style={{ background: 'none', border: 'none', color: '#3B82F6', fontSize: 12, cursor: 'pointer' }}>Ver todas →</button>
+            </div>
+            {cotacoes.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#334155', fontSize: 13 }}>Nenhuma cotação aberta</div>
+            ) : cotacoes.map(c => {
+              const obra = obrasMap[c.obra_id]
+              const dias = Math.round((hoje - new Date(c.created_at)) / 86400000)
+              return (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid #161929' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#F1F5F9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.titulo}</div>
+                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{obra?.nome ?? '—'}</div>
+                  </div>
+                  <span style={{ fontSize: 11, color: dias > 7 ? '#F59E0B' : '#475569', flexShrink: 0 }}>{dias}d aberta</span>
+                </div>
+              )
+            })}
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
