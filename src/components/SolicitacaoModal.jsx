@@ -510,12 +510,54 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                             const opts = [ins.unidade_compra]
                             if (ins.unidade_uso && !opts.includes(ins.unidade_uso)) opts.push(ins.unidade_uso)
                             if (isAco) opts.push(`br${ins.comprimento_m}m`)
+
+                            function converterQtd(novaUnidade, qtdAtual) {
+                              const qtd = parseFloat(qtdAtual) || 0
+                              if (!qtd) return qtdAtual
+                              const pesoM = isAco ? (() => {
+                                const PESOS = { '5': 0.154, '6.3': 0.245, '8': 0.395, '10': 0.617, '12.5': 0.963, '16': 1.578, '20': 2.466, '25': 3.853, '32': 6.313 }
+                                return PESOS[String(ins.diametro_mm)] ?? null
+                              })() : null
+                              const compBarra = parseFloat(ins.comprimento_m) || 12
+                              const fator = parseFloat(ins.fator_conversao) || 1
+
+                              // De unidade_compra para unidade_uso
+                              if (it.unidade === ins.unidade_compra && novaUnidade === ins.unidade_uso) {
+                                return isAco && pesoM ? String((qtd / pesoM).toFixed(2)) : String((qtd * fator).toFixed(3))
+                              }
+                              // De unidade_uso para unidade_compra
+                              if (it.unidade === ins.unidade_uso && novaUnidade === ins.unidade_compra) {
+                                return isAco && pesoM ? String((qtd * pesoM).toFixed(2)) : String((qtd / fator).toFixed(3))
+                              }
+                              // De kg para barras
+                              if (isAco && pesoM && it.unidade === ins.unidade_compra && novaUnidade === `br${compBarra}m`) {
+                                return String(((qtd / pesoM) / compBarra).toFixed(2))
+                              }
+                              // De barras para kg
+                              if (isAco && pesoM && it.unidade === `br${compBarra}m` && novaUnidade === ins.unidade_compra) {
+                                return String((qtd * compBarra * pesoM).toFixed(2))
+                              }
+                              // De m para barras
+                              if (isAco && it.unidade === ins.unidade_uso && novaUnidade === `br${compBarra}m`) {
+                                return String((qtd / compBarra).toFixed(2))
+                              }
+                              // De barras para m
+                              if (isAco && it.unidade === `br${compBarra}m` && novaUnidade === ins.unidade_uso) {
+                                return String((qtd * compBarra).toFixed(2))
+                              }
+                              return qtdAtual
+                            }
+
                             return (
                               <select
                                 style={{ ...locked ? inpDisabled : inp, padding: '6px 8px', fontSize: 12 }}
                                 disabled={locked}
                                 value={it.unidade}
-                                onChange={e => setItem(it.id, 'unidade', e.target.value)}
+                                onChange={e => {
+                                  const novaQtd = converterQtd(e.target.value, it.quantidade)
+                                  setItem(it.id, 'unidade', e.target.value)
+                                  if (novaQtd !== it.quantidade) setItem(it.id, 'quantidade', novaQtd)
+                                }}
                               >
                                 {opts.map(o => <option key={o} value={o}>{o}</option>)}
                               </select>
