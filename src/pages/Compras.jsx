@@ -36,7 +36,7 @@ export default function Compras({ session, permissoes }) {
   const [loading,      setLoading]      = useState(true)
   const [toast,        setToast]        = useState(null)
   const [expanded,     setExpanded]     = useState(null) // id da SC expandida
-  const [filter, setFilter] = useState({ obra: 'all', status: 'all', urgencia: 'all' })
+  const [filter, setFilter] = useState({ obra: 'all', status: 'all', urgencia: 'all', gestao: 'all' })
 
   useEffect(() => { init() }, [])
 
@@ -118,10 +118,8 @@ export default function Compras({ session, permissoes }) {
       const { data, error } = await supabase.from('solicitacoes_compra').insert(payload).select('id').single()
       if (error) { console.error('Erro insert SC:', error); return }
       targetId = data?.id
-      console.log('✅ SC criada, id:', targetId)
       if (targetId && form.itens?.length) {
         const itensValidos = form.itens.filter(it => it.descricao?.trim())
-        console.log('📦 Inserindo itens:', itensValidos.length, itensValidos)
         if (itensValidos.length) {
           const { error: errItens } = await supabase.from('itens_solicitacao').insert(
             itensValidos.map((it, idx) => ({
@@ -134,8 +132,7 @@ export default function Compras({ session, permissoes }) {
               ordem:               idx,
             }))
           )
-          if (errItens) console.error('❌ Erro insert itens:', errItens)
-          else console.log('✅ Itens inseridos com sucesso!')
+          if (errItens) console.error('Erro insert itens:', errItens)
         }
       }
     }
@@ -188,6 +185,7 @@ export default function Compras({ session, permissoes }) {
     if (filter.obra     !== 'all' && s.obra_id  !== filter.obra)     return false
     if (filter.status   !== 'all' && s.status   !== filter.status)   return false
     if (filter.urgencia !== 'all' && s.urgencia !== filter.urgencia) return false
+    if (filter.gestao   !== 'all' && s.gestao   !== filter.gestao)   return false
     return true
   })
 
@@ -276,8 +274,13 @@ export default function Compras({ session, permissoes }) {
           <option value="all">Todas as urgências</option>
           {Object.entries(URGENCIA_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        {(filter.obra !== 'all' || filter.status !== 'all' || filter.urgencia !== 'all') && (
-          <button onClick={() => setFilter({ obra: 'all', status: 'all', urgencia: 'all' })} style={{
+        <select style={selStyle} value={filter.gestao} onChange={e => setFilter(f => ({ ...f, gestao: e.target.value }))}>
+          <option value="all">G.A. + G.E.</option>
+          <option value="GA">Gestão Administrativa</option>
+          <option value="GE">Gestão Executiva</option>
+        </select>
+        {(filter.obra !== 'all' || filter.status !== 'all' || filter.urgencia !== 'all' || filter.gestao !== 'all') && (
+          <button onClick={() => setFilter({ obra: 'all', status: 'all', urgencia: 'all', gestao: 'all' })} style={{
             padding: '6px 12px', borderRadius: 7, border: '1px solid #334155',
             background: 'transparent', color: '#64748B', fontSize: 12, cursor: 'pointer',
           }}>Limpar filtros</button>
@@ -335,7 +338,16 @@ export default function Compras({ session, permissoes }) {
                 </div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#F1F5F9', marginBottom: 2 }}>{sol.titulo}</div>
-                  {sol.solicitante_nome && <div style={{ fontSize: 11, color: '#475569' }}>por {sol.solicitante_nome}</div>}
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {sol.solicitante_nome && <div style={{ fontSize: 11, color: '#475569' }}>por {sol.solicitante_nome}</div>}
+                    {sol.gestao && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                        background: sol.gestao === 'GA' ? '#1E3A5F' : '#064E3B',
+                        color: sol.gestao === 'GA' ? '#93C5FD' : '#6EE7B7',
+                      }}>{sol.gestao === 'GA' ? 'G.A.' : 'G.E.'}</span>
+                    )}
+                  </div>
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#94A3B8', textAlign: 'center' }}>{sol.itens?.length ?? 0}</div>
                 <div style={{ fontSize: 12, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sol.obra?.nome ?? '—'}</div>
