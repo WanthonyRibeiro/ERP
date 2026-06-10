@@ -501,7 +501,31 @@ export default function Insumos({ session }) {
     setTimeout(() => setToast(null), 3000)
   }
 
-  async function handleSave(form) {
+  const [histModal, setHistModal] = useState(null)
+  const [histDados, setHistDados] = useState([])
+  const [histLoading, setHistLoading] = useState(false)
+
+  async function verHistorico(insumo) {
+    setHistModal(insumo)
+    setHistLoading(true)
+    // Busca cotações que têm esse insumo pelo nome
+    const { data: precos } = await supabase
+      .from('cotacao_itens')
+      .select(`
+        descricao, unidade, quantidade,
+        cotacao:cotacoes(titulo, created_at, status, obra:obras(nome)),
+        precos:cotacao_precos(
+          preco_unitario, desconto_pct, bdi_pct,
+          fornecedor:cotacao_fornecedores(fornecedor_nome, condicao_pagamento)
+        )
+      `)
+      .ilike('descricao', `%${insumo.nome.split(' ').slice(0, 3).join(' ')}%`)
+      .order('created_at', { foreignTable: 'cotacoes', ascending: false })
+      .limit(50)
+
+    setHistDados(precos ?? [])
+    setHistLoading(false)
+  }
     const payload = {
       ...form,
       fator_conversao:  parseFloat(form.fator_conversao)  || null,
@@ -640,6 +664,7 @@ export default function Insumos({ session }) {
                 {ins.fator_conversao && (
                   <button onClick={() => setCalcModal(ins)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #1E3A5F', background: 'transparent', color: '#3B82F6', fontSize: 12, cursor: 'pointer' }} title="Calculadora de conversão">⚖️</button>
                 )}
+                <button onClick={() => verHistorico(ins)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #1E2235', background: 'transparent', color: '#8B5CF6', fontSize: 12, cursor: 'pointer' }} title="Histórico de preços">📈</button>
                 <button onClick={() => setModal(ins)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #1E2235', background: 'transparent', color: '#475569', fontSize: 12, cursor: 'pointer' }}>✏️</button>
                 <button onClick={() => handleDelete(ins.id)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #450A0A', background: 'transparent', color: '#EF4444', fontSize: 12, cursor: 'pointer' }}>×</button>
               </div>
@@ -665,7 +690,64 @@ export default function Insumos({ session }) {
         />
       )}
 
-      {toast && (
+      {histModal && (
+        <div onClick={e => e.target === e.currentTarget && setHistModal(null)} style={{ position: 'fixed', inset: 0, background: '#00000090', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 16, width: 700, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #1E2235', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#F1F5F9' }}>📈 Histórico de Preços</div>
+                <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{histModal.nome}</div>
+              </div>
+              <button onClick={() => setHistModal(null)} style={{ background: 'none', border: 'none', color: '#475569', fontSize: 22, cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+              {histLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#334155' }}>Buscando histórico...</div>
+              ) : histDados.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#334155' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>📊</div>
+                  <div style={{ color: '#475569' }}>Nenhuma cotação encontrada para este insumo</div>
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: '#0D1020' }}>
+                      {['Cotação', 'Obra', 'Data', 'Fornecedor', 'Preço Unit.', 'Desc%', 'BDI%', 'Preço Eq.', 'Pagamento'].map(h => (
+                        <th key={h} style={{ padding: '8px 10px', textAlign: 'left', color: '#475569', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', borderBottom: '1px solid #1E2235', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {histDados.flatMap((item, i) =>
+                      (item.precos ?? []).map((preco, j) => {
+                        const pu = parseFloat(preco.preco_unitario) || 0
+                        const desc = parseFloat(preco.desconto_pct) || 0
+                        const bdi  = parseFloat(preco.bdi_pct) || 0
+                        const eq   = pu * (1 - desc/100) * (1 + bdi/100)
+                        return (
+                          <tr key={`${i}-${j}`} style={{ background: (i+j) % 2 === 0 ? '#0F1117' : '#0D1020', borderBottom: '1px solid #161929' }}>
+                            <td style={{ padding: '8px 10px', color: '#94A3B8' }}>{item.cotacao?.titulo ?? '—'}</td>
+                            <td style={{ padding: '8px 10px', color: '#64748B' }}>{item.cotacao?.obra?.nome ?? '—'}</td>
+                            <td style={{ padding: '8px 10px', color: '#64748B', whiteSpace: 'nowrap' }}>
+                              {item.cotacao?.created_at ? new Date(item.cotacao.created_at).toLocaleDateString('pt-BR') : '—'}
+                            </td>
+                            <td style={{ padding: '8px 10px', color: '#F1F5F9', fontWeight: 600 }}>{preco.fornecedor?.fornecedor_nome ?? '—'}</td>
+                            <td style={{ padding: '8px 10px', color: '#F1F5F9', textAlign: 'right' }}>{pu > 0 ? `R$ ${pu.toFixed(2)}` : '—'}</td>
+                            <td style={{ padding: '8px 10px', color: '#64748B', textAlign: 'center' }}>{desc > 0 ? `${desc}%` : '—'}</td>
+                            <td style={{ padding: '8px 10px', color: '#64748B', textAlign: 'center' }}>{bdi > 0 ? `${bdi}%` : '—'}</td>
+                            <td style={{ padding: '8px 10px', color: eq > 0 ? '#10B981' : '#334155', textAlign: 'right', fontWeight: 600 }}>{eq > 0 ? `R$ ${eq.toFixed(2)}` : '—'}</td>
+                            <td style={{ padding: '8px 10px', color: '#64748B' }}>{preco.fornecedor?.condicao_pagamento ?? '—'}</td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
         <div style={{
           position: 'fixed', bottom: 24, right: 24,
           background: '#064E3B', border: '1px solid #065F46',

@@ -88,6 +88,7 @@ export default function Compras({ session, permissoes }) {
       motivo_rejeicao:  form.motivo_rejeicao,
       prazo_entrega:    form.prazo_entrega || null,
       gestao:           form.gestao || 'GE',
+      task_id:          form.task_id || null,
     }
 
     const solId = form.id

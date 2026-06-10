@@ -53,6 +53,9 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
   const [showInsumoSearch, setShowInsumoSearch] = useState(null) // id do item sendo pesquisado
   const [insumoSearch, setInsumoSearch] = useState('')
 
+  const [tasks, setTasks] = useState([])
+  const [taskSearch, setTaskSearch] = useState('')
+
   const [form, setForm] = useState({
     obra_id:          solicitacao?.obra_id          ?? obras[0]?.id ?? '',
     titulo:           solicitacao?.titulo           ?? '',
@@ -63,6 +66,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
     motivo_rejeicao:  solicitacao?.motivo_rejeicao  ?? '',
     prazo_entrega:    solicitacao?.prazo_entrega    ?? (() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString().slice(0,10) })(),
     gestao:           solicitacao?.gestao           ?? '',
+    task_id:          solicitacao?.task_id          ?? '',
   })
   const [items, setItems] = useState(
     solicitacao?.itens?.length ? solicitacao.itens : [newItem()]
@@ -78,6 +82,19 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
   useEffect(() => {
     if (form.gestao) loadInsumos(form.gestao)
   }, [form.gestao])
+
+  // Carrega tasks da obra selecionada
+  useEffect(() => {
+    if (form.obra_id) loadTasks(form.obra_id)
+  }, [form.obra_id])
+
+  async function loadTasks(obraId) {
+    const { data } = await supabase.from('tasks')
+      .select('id, label, start_date, end_date, progress')
+      .eq('obra_id', obraId)
+      .order('start_date')
+    setTasks(data ?? [])
+  }
 
   async function loadInsumos(gestao) {
     const categorias = gestao === 'GA'
@@ -593,6 +610,52 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                   </div>
                 </div>
               </div>
+
+              {/* Vincular ao Cronograma */}
+              {tasks.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={lbl}>Vincular ao Cronograma (opcional)</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      style={{ ...locked ? inpDisabled : inp }}
+                      disabled={locked}
+                      placeholder="Buscar tarefa do cronograma..."
+                      value={form.task_id ? (tasks.find(t => t.id === form.task_id)?.label ?? taskSearch) : taskSearch}
+                      onChange={e => {
+                        setTaskSearch(e.target.value)
+                        if (!e.target.value) setF('task_id', '')
+                      }}
+                    />
+                    {taskSearch && !form.task_id && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 8, maxHeight: 180, overflowY: 'auto', boxShadow: '0 8px 24px #00000080' }}>
+                        {tasks.filter(t => t.label.toLowerCase().includes(taskSearch.toLowerCase())).slice(0, 10).map(t => (
+                          <div
+                            key={t.id}
+                            onMouseDown={() => { setF('task_id', t.id); setTaskSearch(t.label) }}
+                            style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #161929' }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#0F1117'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <div style={{ fontSize: 12, color: '#F1F5F9' }}>{t.label}</div>
+                            <div style={{ fontSize: 10, color: '#475569' }}>{t.start_date} → {t.end_date} · {t.progress}%</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {form.task_id && !locked && (
+                      <button
+                        onClick={() => { setF('task_id', ''); setTaskSearch('') }}
+                        style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: 16 }}
+                      >×</button>
+                    )}
+                  </div>
+                  {form.task_id && (
+                    <div style={{ marginTop: 6, fontSize: 11, color: '#10B981' }}>
+                      ✓ Vinculada a: {tasks.find(t => t.id === form.task_id)?.label}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Observações */}
               <div style={{ marginBottom: 16 }}>

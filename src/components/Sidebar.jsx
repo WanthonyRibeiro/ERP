@@ -30,11 +30,12 @@ const MENU = [
     icon: '🛒',
     label: 'Suprimentos',
     children: [
-      { id: 'compras',      icon: '🛒', label: 'Compras (SC)', modulo: 'compras'      },
-      { id: 'cotacoes',     icon: '📋', label: 'Cotações',     modulo: 'cotacoes'     },
-      { id: 'insumos',      icon: '📦', label: 'Insumos',      modulo: 'insumos'      },
-      { id: 'fornecedores', icon: '🏢', label: 'Fornecedores', modulo: 'fornecedores' },
-      { id: 'estoque',      icon: '🗃️', label: 'Estoque',      modulo: 'estoque', soon: true },
+      { id: 'compras',        icon: '🛒', label: 'Compras (SC)',      modulo: 'compras'        },
+      { id: 'relatorio_compras', icon: '📋', label: 'Relatório Compras', modulo: 'relatorio_compras' },
+      { id: 'cotacoes',       icon: '📊', label: 'Cotações',          modulo: 'cotacoes'       },
+      { id: 'insumos',        icon: '📦', label: 'Insumos',           modulo: 'insumos'        },
+      { id: 'fornecedores',   icon: '🏢', label: 'Fornecedores',      modulo: 'fornecedores'   },
+      { id: 'estoque',        icon: '🗃️', label: 'Estoque',           modulo: 'estoque', soon: true },
     ],
   },
   {
