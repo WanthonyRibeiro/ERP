@@ -334,12 +334,9 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
             })}
           </Card>
         </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-          <Card style={{ gridColumn: '1 / -1' }}>
+
+        {/* Card Pendências */}
+        <Card style={{ marginTop: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>📋 Lista de Pendências</div>
               <span style={{ fontSize: 11, color: '#475569' }}>{[
@@ -442,3 +439,8 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
               )}
             </div>
           </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
