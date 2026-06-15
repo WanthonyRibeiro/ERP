@@ -182,18 +182,127 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
     await updateFornecedor(cotFornId, 'fornecedor_nome', forn.nome)
   }
 
-  // ── IMPORTAÇÃO DE COTAÇÃO VIA IA ─────────────────────────────────────────
+  // ── IMPORTAÇÃO DETERMINÍSTICA: planilha de equalização (fornecedores em colunas) ──
+  async function tentarImportarEqualizacao(file) {
+    const XLSX = await import('xlsx')
+    const buf = await file.arrayBuffer()
+    const wb = XLSX.read(buf, { type: 'array' })
+    const ws = wb.Sheets[wb.SheetNames[0]]
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true })
+
+    // Acha a linha com nomes dos fornecedores: tem células "FORNECEDOR X" ou similar
+    let fornecedorRow = -1
+    let headerRow = -1
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+      const row = rows[i] ?? []
+      if (row.some(c => typeof c === 'string' && /fornecedor\s*\d/i.test(c))) fornecedorRow = i
+      if (row.some(c => typeof c === 'string' && /^(item)$/i.test(String(c).trim()))
+          && row.some(c => typeof c === 'string' && /descri/i.test(c))) headerRow = i
+    }
+    if (fornecedorRow === -1 || headerRow === -1) return null // não é esse formato
+
+    const fRow = rows[fornecedorRow]
+    const hRow = rows[headerRow]
+    const nomeRow = rows[fornecedorRow + 1] ?? [] // linha com nome real do fornecedor
+
+    // Identifica colunas-base
+    const colItem = hRow.findIndex(c => /^item$/i.test(String(c ?? '').trim()))
+    const colDesc = hRow.findIndex(c => /descri/i.test(String(c ?? '')))
+    const colQtd  = hRow.findIndex(c => /quant/i.test(String(c ?? '')))
+    const colUn   = hRow.findIndex(c => /^un\.?$/i.test(String(c ?? '').trim()))
+
+    // Identifica blocos de fornecedores: cada "FORNECEDOR X" na fRow marca o início (colunas Unit/Total seguintes)
+    const fornecedores = []
+    for (let c = 0; c < fRow.length; c++) {
+      const val = fRow[c]
+      if (typeof val === 'string' && /fornecedor\s*\d/i.test(val)) {
+        // Acha colunas Unit e Total a partir daqui na headerRow
+        let colUnit = -1, colTotal = -1
+        for (let cc = c; cc < hRow.length && cc < c + 4; cc++) {
+          if (colUnit === -1 && /^unit/i.test(String(hRow[cc] ?? ''))) colUnit = cc
+          else if (colUnit !== -1 && colTotal === -1 && /^total/i.test(String(hRow[cc] ?? ''))) colTotal = cc
+        }
+        const nome = (nomeRow[c] ?? val ?? '').toString().trim() || val.trim()
+        fornecedores.push({ nome, colUnit, colTotal, colStart: c })
+      }
+    }
+    if (!fornecedores.length) return null
+
+    // Coleta itens: linhas após headerRow até encontrar linha sem ITEM numérico
+    const itens = []
+    let r = headerRow + 1
+    while (r < rows.length) {
+      const row = rows[r] ?? []
+      const itemVal = row[colItem]
+      const descVal = row[colDesc]
+      if (typeof itemVal !== 'number' || !descVal) break
+      itens.push({
+        descricao: String(descVal).trim(),
+        unidade: colUn >= 0 ? String(row[colUn] ?? 'un').trim() : 'un',
+        quantidade: parseFloat(row[colQtd]) || 1,
+        precos: fornecedores.map(f => ({
+          unit: parseFloat(row[f.colUnit]) || 0,
+        })),
+      })
+      r++
+    }
+    if (!itens.length) return null
+
+    // Coleta condições de pagamento, frete, desconto (linhas depois dos itens)
+    const condicoes = fornecedores.map(() => ({ pagamento: '', frete: 0, desconto: 0, totalProposta: 0 }))
+    for (let rr = r; rr < rows.length; rr++) {
+      const row = rows[rr] ?? []
+      const label = String(row[colDesc] ?? row[1] ?? row[0] ?? '').toUpperCase()
+      fornecedores.forEach((f, fi) => {
+        const val = row[f.colUnit]
+        const valTotal = row[f.colTotal]
+        if (/CONDI[CÇ][AÕ]ES?\s*DE\s*PAGAMENTO/i.test(label) && val != null) condicoes[fi].pagamento = String(val).trim()
+        if (/^FRETE/i.test(label) && typeof val === 'number') condicoes[fi].frete = val
+        if (/DESCONTO/i.test(label) && typeof val === 'number') condicoes[fi].desconto = val
+        if (/VALOR\s*TOTAL\s*DA\s*PROPOSTA\s*INICIAL/i.test(label) && typeof val === 'number') condicoes[fi].totalProposta = val
+      })
+    }
+
+    // Converte desconto absoluto (R$) em percentual
+    condicoes.forEach(c => {
+      if (c.desconto > 0 && c.totalProposta > 0) {
+        c.desconto_pct = (c.desconto / c.totalProposta) * 100
+      } else {
+        c.desconto_pct = 0
+      }
+    })
+
+    return { fornecedores, itens, condicoes }
+  }
   const importRef = useRef(null)
   const [importando, setImportando] = useState(false)
   const [importModal, setImportModal] = useState(null) // dados extraídos pela IA
+
+  const [importMultiModal, setImportMultiModal] = useState(null)
 
   async function handleImportCotacao(e) {
     const file = e.target.files[0]
     if (!file) return
     e.target.value = ''
     const ext = file.name.split('.').pop().toLowerCase()
+
+    // 1. Tenta formato determinístico de equalização (sem IA)
+    if (['xlsx', 'xls'].includes(ext)) {
+      try {
+        const equalizacao = await tentarImportarEqualizacao(file)
+        if (equalizacao) {
+          setImportMultiModal(equalizacao)
+          showToast(`Planilha de equalização detectada: ${equalizacao.fornecedores.length} fornecedores, ${equalizacao.itens.length} itens`, 'success')
+          return
+        }
+      } catch (err) {
+        console.error('Erro no parser determinístico:', err)
+      }
+    }
+
+    // 2. Fallback: usa IA
     setImportando(true)
-    showToast('Analisando arquivo...', 'loading')
+    showToast('Analisando arquivo com IA...', 'loading')
 
     try {
       let textContent = ''
@@ -256,12 +365,13 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
         content: `${prompt}\n\nConteúdo do arquivo:\n${textContent}`
       }]
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/anthropic', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2000, messages })
       })
       const data = await res.json()
+      if (data.error) throw new Error(data.error.message ?? data.error)
       const text = data.content?.[0]?.text ?? ''
       const clean = text.replace(/```json|```/g, '').trim()
       const parsed = JSON.parse(clean)
@@ -272,6 +382,66 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
       showToast('Erro ao analisar arquivo.', 'error')
     }
     setImportando(false)
+  }
+
+  async function confirmarImportacaoMulti(dados) {
+    // 1. Cria itens da cotação (uma vez, compartilhados entre fornecedores)
+    const itensIds = []
+    for (const it of dados.itens) {
+      let itemId = itens.find(i => i.descricao?.toLowerCase() === it.descricao?.toLowerCase())?.id
+      if (!itemId) {
+        const { data: novoItem } = await supabase.from('cotacao_itens').insert({
+          cotacao_id: cotacao.id,
+          descricao: it.descricao,
+          unidade: it.unidade ?? 'un',
+          quantidade: parseFloat(it.quantidade) || 1,
+          ordem: itens.length + itensIds.length,
+        }).select().single()
+        if (novoItem) {
+          setItens(its => [...its, novoItem])
+          itemId = novoItem.id
+        }
+      }
+      itensIds.push(itemId)
+    }
+
+    // 2. Para cada fornecedor: cria fornecedor + insere preços de todos os itens
+    for (let fi = 0; fi < dados.fornecedores.length; fi++) {
+      const f = dados.fornecedores[fi]
+      const cond = dados.condicoes[fi] ?? { pagamento: '', frete: 0, desconto: 0 }
+
+      const { data: novoForn } = await supabase.from('cotacao_fornecedores').insert({
+        cotacao_id: cotacao.id,
+        fornecedor_nome: f.nome,
+        condicao_pagamento: cond.pagamento ?? '',
+        frete: parseFloat(cond.frete) || 0,
+        observacoes: '',
+        ordem: fornecedores.length + fi,
+      }).select().single()
+
+      if (!novoForn) continue
+      setFornecedores(fs => [...fs, novoForn])
+
+      // Insere preços de cada item para esse fornecedor
+      for (let ii = 0; ii < dados.itens.length; ii++) {
+        const itemId = itensIds[ii]
+        const precoUnit = dados.itens[ii].precos[fi]?.unit ?? 0
+        if (!itemId || !precoUnit) continue
+
+        const { data: novoPreco } = await supabase.from('cotacao_precos').insert({
+          cotacao_item_id: itemId,
+          cotacao_fornecedor_id: novoForn.id,
+          preco_unitario: precoUnit,
+          desconto_pct: parseFloat(cond.desconto_pct) || 0,
+          bdi_pct: 0,
+        }).select().single()
+        if (novoPreco) setPrecos(ps => [...ps, novoPreco])
+      }
+    }
+
+    setImportMultiModal(null)
+    showToast(`✅ ${dados.fornecedores.length} fornecedores e ${dados.itens.length} itens importados!`)
+    setAba('comparativo')
   }
 
   async function confirmarImportacao(dados, fornecedorId) {
@@ -765,6 +935,54 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
           </div>
         )}
       </div>
+
+      {/* Modal de confirmação - equalização multi-fornecedor */}
+      {importMultiModal && (
+        <div style={{ position: 'fixed', inset: 0, background: '#00000095', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: 16 }}>
+          <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 16, width: 700, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #1E2235' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>✅ Planilha de equalização detectada</div>
+              <div style={{ fontSize: 12, color: '#475569' }}>{importMultiModal.fornecedores.length} fornecedores · {importMultiModal.itens.length} itens — confirme antes de importar</div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+
+              {/* Fornecedores */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 8, textTransform: 'uppercase' }}>Fornecedores</div>
+              {importMultiModal.fornecedores.map((f, i) => {
+                const cond = importMultiModal.condicoes[i] ?? {}
+                return (
+                  <div key={i} style={{ background: '#0F1117', border: '1px solid #1E2235', borderRadius: 8, padding: '10px 14px', marginBottom: 8, fontSize: 12 }}>
+                    <div style={{ fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>{f.nome}</div>
+                    <div style={{ display: 'flex', gap: 16, color: '#64748B', fontSize: 11 }}>
+                      <span>Pagamento: {cond.pagamento || '—'}</span>
+                      <span>Frete: {cond.frete ? fmtBRL(cond.frete) : '—'}</span>
+                      <span>Desconto: {cond.desconto ? fmtBRL(cond.desconto) : '—'}</span>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Itens */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginTop: 14, marginBottom: 8, textTransform: 'uppercase' }}>{importMultiModal.itens.length} Itens</div>
+              <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                {importMultiModal.itens.map((it, i) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 50px 60px', gap: 8, marginBottom: 4, fontSize: 12 }}>
+                    <div style={{ color: '#94A3B8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.descricao}</div>
+                    <div style={{ color: '#64748B' }}>{it.unidade}</div>
+                    <div style={{ color: '#64748B' }}>{it.quantidade}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ padding: '14px 24px', borderTop: '1px solid #1E2235', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setImportMultiModal(null)} style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => confirmarImportacaoMulti(importMultiModal)} style={{ padding: '8px 20px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                ✓ Importar {importMultiModal.fornecedores.length} fornecedores
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de confirmação de importação */}
       {importModal && (
