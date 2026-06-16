@@ -11,12 +11,13 @@ const ROLES = {
 }
 
 const MODULOS = [
-  { id: 'obras',       label: '🏗️ Obras'       },
-  { id: 'compras',     label: '🛒 Compras'     },
-  { id: 'cronograma',  label: '📅 Cronograma'  },
-  { id: 'financeiro',  label: '💰 Financeiro'  },
-  { id: 'rdo',         label: '📋 RDO'         },
-  { id: 'estoque',     label: '🗃️ Estoque'     },
+  { id: 'obras',          label: '🏗️ Obras'             },
+  { id: 'compras',        label: '🛒 Compras'           },
+  { id: 'cronograma',     label: '📅 Cronograma'        },
+  { id: 'financeiro',     label: '💰 Financeiro'        },
+  { id: 'rdo',            label: '📋 RDO'               },
+  { id: 'estoque',        label: '🗃️ Estoque'           },
+  { id: 'pedidos_compra', label: '📄 Pedidos de Compra' },
 ]
 
 const inp = {

@@ -357,7 +357,7 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
     // Converte desconto absoluto (R$) em percentual
     condicoes.forEach(c => {
       if (c.desconto > 0 && c.totalProposta > 0) {
-        c.desconto_pct = (c.desconto / c.totalProposta) * 100
+        c.desconto_pct = Math.round((c.desconto / c.totalProposta) * 100 * 100) / 100
       } else {
         c.desconto_pct = 0
       }
@@ -810,7 +810,7 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
                                 <td key={`${item.id}-${f.id}-desc`} style={{ padding: '4px 6px', border: '1px solid #161929' }}>
                                   <input
                                     type="number" min="0" max="100" step="0.1"
-                                    value={p?.desconto_pct ?? ''}
+                                    value={p?.desconto_pct != null ? Math.round(parseFloat(p.desconto_pct) * 100) / 100 : ''}
                                     onChange={e => updatePreco(item.id, f.id, 'desconto_pct', e.target.value)}
                                     style={{ ...inp, padding: '4px 6px', fontSize: 12, textAlign: 'right' }}
                                     placeholder="0"

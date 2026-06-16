@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import EntregaPedidoModal from '../components/EntregaPedidoModal'
 
 function fmtBRL(v) {
   return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -22,6 +23,7 @@ export default function PedidosCompra({ session }) {
   const [loading,  setLoading]  = useState(true)
   const [filtro,   setFiltro]   = useState({ obra: 'all', status: 'all' })
   const [detalhe,  setDetalhe]  = useState(null)
+  const [entregaModal, setEntregaModal] = useState(null)
   const [toast,    setToast]    = useState(null)
   const printRef = useRef(null)
 
@@ -42,13 +44,6 @@ export default function PedidosCompra({ session }) {
     setLoading(false)
   }
 
-  async function marcarEntregue(id) {
-    await supabase.from('pedidos_compra').update({ status: 'entregue', entregue_em: new Date().toISOString() }).eq('id', id)
-    showToast('✅ Pedido marcado como entregue!')
-    init()
-    if (detalhe?.id === id) setDetalhe(d => ({ ...d, status: 'entregue' }))
-  }
-
   async function cancelarPedido(id) {
     if (!confirm('Cancelar este pedido?')) return
     await supabase.from('pedidos_compra').update({ status: 'cancelado' }).eq('id', id)
@@ -66,7 +61,7 @@ export default function PedidosCompra({ session }) {
         <td style="text-align:center">${it.unidade}</td>
         <td style="text-align:right">${parseFloat(it.quantidade)}</td>
         <td style="text-align:right">${fmtBRL(it.preco_unitario)}</td>
-        <td style="text-align:right">${it.desconto_pct ? it.desconto_pct + '%' : '—'}</td>
+        <td style="text-align:right">${it.desconto_pct ? Math.round(parseFloat(it.desconto_pct) * 100) / 100 + '%' : '—'}</td>
         <td style="text-align:right">${fmtBRL(total)}</td>
       </tr>`
     }).join('')
@@ -183,7 +178,7 @@ export default function PedidosCompra({ session }) {
             <button onClick={() => imprimirPedido(detalhe)} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: '#1E3A5F', color: '#93C5FD', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>🖨️ Imprimir / PDF</button>
             {detalhe.status === 'aberto' && (
               <>
-                <button onClick={() => marcarEntregue(detalhe.id)} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: '#064E3B', color: '#6EE7B7', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>✓ Marcar entregue</button>
+                <button onClick={() => setEntregaModal(detalhe)} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: '#064E3B', color: '#6EE7B7', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>✓ Marcar entregue</button>
                 <button onClick={() => cancelarPedido(detalhe.id)} style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #7F1D1D', background: 'transparent', color: '#FCA5A5', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
               </>
             )}
@@ -223,7 +218,7 @@ export default function PedidosCompra({ session }) {
                     <td style={{ padding: '10px 14px', color: '#64748B' }}>{it.unidade}</td>
                     <td style={{ padding: '10px 14px', color: '#94A3B8' }}>{it.quantidade}</td>
                     <td style={{ padding: '10px 14px', color: '#94A3B8' }}>{fmtBRL(it.preco_unitario)}</td>
-                    <td style={{ padding: '10px 14px', color: '#64748B' }}>{it.desconto_pct ? it.desconto_pct + '%' : '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#64748B' }}>{it.desconto_pct ? Math.round(parseFloat(it.desconto_pct) * 100) / 100 + '%' : '—'}</td>
                     <td style={{ padding: '10px 14px', color: '#10B981', fontWeight: 600 }}>{fmtBRL(total)}</td>
                   </tr>
                 )
@@ -241,6 +236,20 @@ export default function PedidosCompra({ session }) {
 
         {toast && (
           <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#064E3B', border: '1px solid #065F46', color: '#6EE7B7', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 2000 }}>{toast}</div>
+        )}
+
+        {entregaModal && (
+          <EntregaPedidoModal
+            pedido={entregaModal}
+            session={session}
+            onClose={() => setEntregaModal(null)}
+            onConfirmado={() => {
+              setEntregaModal(null)
+              showToast('✅ Entrega confirmada e estoque atualizado!')
+              init()
+              setDetalhe(d => d ? { ...d, status: 'entregue' } : d)
+            }}
+          />
         )}
       </div>
     )
@@ -304,6 +313,11 @@ export default function PedidosCompra({ session }) {
                   <div style={{ fontSize: 12, color: '#475569' }}>{p.fornecedor_nome} · {p.obra?.nome} · {fmtData(p.created_at)}</div>
                 </div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: '#10B981' }}>{fmtBRL(p.valor_total)}</div>
+                {p.status === 'aberto' && (
+                  <button onClick={e => { e.stopPropagation(); setEntregaModal(p) }} style={{ padding: '6px 12px', borderRadius: 7, border: 'none', background: '#064E3B', color: '#6EE7B7', fontWeight: 600, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
+                    ✓ Marcar entregue
+                  </button>
+                )}
               </div>
             )
           })}
@@ -312,6 +326,19 @@ export default function PedidosCompra({ session }) {
 
       {toast && (
         <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#064E3B', border: '1px solid #065F46', color: '#6EE7B7', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 2000 }}>{toast}</div>
+      )}
+
+      {entregaModal && (
+        <EntregaPedidoModal
+          pedido={entregaModal}
+          session={session}
+          onClose={() => setEntregaModal(null)}
+          onConfirmado={() => {
+            setEntregaModal(null)
+            showToast('✅ Entrega confirmada e estoque atualizado!')
+            init()
+          }}
+        />
       )}
     </div>
   )
