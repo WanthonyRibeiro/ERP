@@ -7,6 +7,7 @@ const ROLES = {
   engenheiro:     { label: 'Engenheiro',     color: '#10B981' },
   administrativo: { label: 'Administrativo', color: '#F59E0B' },
   mestre:         { label: 'Mestre de Obra', color: '#8B5CF6' },
+  almoxarife:     { label: 'Almoxarife',     color: '#06B6D4' },
 }
 
 const MODULOS = [
@@ -15,6 +16,7 @@ const MODULOS = [
   { id: 'cronograma',  label: '📅 Cronograma'  },
   { id: 'financeiro',  label: '💰 Financeiro'  },
   { id: 'rdo',         label: '📋 RDO'         },
+  { id: 'estoque',     label: '🗃️ Estoque'     },
 ]
 
 const inp = {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
+import RecebimentoModal from './RecebimentoModal'
 
 const URGENCIA_META = {
   normal:  { label: 'Normal',  color: '#64748B', bg: '#1E2235' },
@@ -39,7 +40,8 @@ function newItem() {
   return { id: Date.now(), descricao: '', unidade: 'un', quantidade: 1, valor_unitario: '', fornecedor_sugerido: '' }
 }
 
-export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete, onClose, onDuplicate, session }) {
+export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete, onClose, onDuplicate, onRefresh, session }) {
+  const [recebimentoOpen, setRecebimentoOpen] = useState(false)
   const isNew   = !solicitacao?.id
   const locked  = !isNew && solicitacao?.status !== 'pendente'
   const userName = session?.user?.user_metadata?.nome ?? session?.user?.email ?? ''
@@ -759,7 +761,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
               <button onClick={() => handleSave('em_pedido')} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#2E1065', color: '#C4B5FD', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>📦 Marcar como pedido</button>
             )}
             {form.status === 'em_pedido' && (
-              <button onClick={() => handleSave('recebido')} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#064E3B', color: '#6EE7B7', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>✓ Marcar como recebido</button>
+              <button onClick={() => setRecebimentoOpen(true)} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#064E3B', color: '#6EE7B7', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>✓ Marcar como recebido</button>
             )}
             <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
             {!locked && (
@@ -772,6 +774,16 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
           </div>
         </div>
       </div>
+
+      {recebimentoOpen && (
+        <RecebimentoModal
+          sc={solicitacao}
+          itens={form.itens.filter(it => it.descricao?.trim())}
+          session={session}
+          onClose={() => setRecebimentoOpen(false)}
+          onConfirmado={() => { setRecebimentoOpen(false); onRefresh?.(); onClose() }}
+        />
+      )}
     </div>
   )
 }

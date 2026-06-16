@@ -1,0 +1,308 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+
+function fmtData(d) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+function fmtDataHora(d) {
+  if (!d) return '—'
+  return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+export default function Estoque({ session, permissoes }) {
+  const [obras,   setObras]   = useState([])
+  const [obraId,  setObraId]  = useState('')
+  const [saldo,   setSaldo]   = useState([])
+  const [movs,    setMovs]    = useState([])
+  const [aba,     setAba]     = useState('saldo')
+  const [loading, setLoading] = useState(true)
+  const [busca,   setBusca]   = useState('')
+  const [toast,   setToast]   = useState(null)
+
+  const [saidaModal, setSaidaModal] = useState(null)
+  const [ajusteModal, setAjusteModal] = useState(null)
+
+  useEffect(() => { loadObras() }, [])
+  useEffect(() => { if (obraId) loadDados() }, [obraId])
+
+  function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 3000) }
+
+  async function loadObras() {
+    const { data } = await supabase.from('obras').select('id, nome').order('nome')
+    setObras(data ?? [])
+    if (data?.length) setObraId(data[0].id)
+    else setLoading(false)
+  }
+
+  async function loadDados() {
+    setLoading(true)
+    const [r1, r2] = await Promise.all([
+      supabase.from('estoque_saldo').select('*').eq('obra_id', obraId).order('insumo_nome'),
+      supabase.from('estoque_movimentacoes').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }).limit(100),
+    ])
+    setSaldo(r1.data ?? [])
+    setMovs(r2.data ?? [])
+    setLoading(false)
+  }
+
+  async function registrarSaida(insumo, quantidade, observacoes) {
+    const qtd = parseFloat(quantidade)
+    if (!qtd || qtd <= 0) { showToast('Quantidade inválida'); return }
+    if (qtd > insumo.quantidade) { showToast('Quantidade maior que o saldo disponível!'); return }
+
+    const userName = session?.user?.user_metadata?.nome ?? session?.user?.email
+    const { error } = await supabase.from('estoque_movimentacoes').insert({
+      obra_id: obraId,
+      insumo_nome: insumo.insumo_nome,
+      unidade: insumo.unidade,
+      tipo: 'saida',
+      quantidade: qtd,
+      origem: 'manual',
+      observacoes,
+      responsavel_nome: userName,
+      user_id: session.user.id,
+    })
+    if (error) { showToast('Erro ao registrar saída'); return }
+    setSaidaModal(null)
+    showToast('✅ Saída registrada!')
+    loadDados()
+  }
+
+  async function registrarAjuste(insumo, novaQtd, observacoes) {
+    const qtd = parseFloat(novaQtd)
+    if (qtd == null || isNaN(qtd) || qtd < 0) { showToast('Quantidade inválida'); return }
+    const diferenca = qtd - insumo.quantidade
+
+    const userName = session?.user?.user_metadata?.nome ?? session?.user?.email
+    const { error } = await supabase.from('estoque_movimentacoes').insert({
+      obra_id: obraId,
+      insumo_nome: insumo.insumo_nome,
+      unidade: insumo.unidade,
+      tipo: diferenca >= 0 ? 'entrada' : 'saida',
+      quantidade: Math.abs(diferenca),
+      origem: 'ajuste',
+      observacoes: observacoes || `Ajuste manual: ${insumo.quantidade} → ${qtd}`,
+      responsavel_nome: userName,
+      user_id: session.user.id,
+    })
+    if (error) { showToast('Erro ao registrar ajuste'); return }
+    setAjusteModal(null)
+    showToast('✅ Ajuste registrado!')
+    loadDados()
+  }
+
+  const saldoFiltrado = saldo.filter(s => s.insumo_nome.toLowerCase().includes(busca.toLowerCase()))
+  const totalItens = saldo.length
+  const itensZerados = saldo.filter(s => s.quantidade <= 0).length
+
+  const selStyle = {
+    padding: '7px 14px', borderRadius: 7, border: '1px solid #1E2235',
+    background: '#0F1117', color: '#94A3B8', fontSize: 12, outline: 'none', cursor: 'pointer',
+  }
+  const inp = {
+    width: '100%', padding: '8px 12px', borderRadius: 7,
+    background: '#0F1117', border: '1px solid #1E2235',
+    color: '#F1F5F9', fontSize: 13, outline: 'none', fontFamily: 'inherit',
+  }
+
+  return (
+    <div style={{ flex: 1, padding: '28px', overflowY: 'auto', color: '#E2E8F0', fontFamily: "'DM Sans', sans-serif" }}>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>🗃️ Estoque</h1>
+          <p style={{ fontSize: 13, color: '#475569' }}>Saldo de insumos por obra e histórico de movimentações.</p>
+        </div>
+        <select style={selStyle} value={obraId} onChange={e => setObraId(e.target.value)}>
+          {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+        </select>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        {[
+          { label: 'Itens em estoque', value: totalItens, color: '#3B82F6' },
+          { label: 'Itens zerados',    value: itensZerados, color: itensZerados > 0 ? '#EF4444' : '#10B981' },
+          { label: 'Movimentações (100 últimas)', value: movs.length, color: '#8B5CF6' },
+        ].map(s => (
+          <div key={s.label} style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 10, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</span>
+            <span style={{ fontSize: 11, color: '#475569' }}>{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #1E2235', marginBottom: 16 }}>
+        {[
+          { id: 'saldo', label: 'Saldo Atual' },
+          { id: 'historico', label: 'Histórico de Movimentações' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setAba(t.id)} style={{
+            padding: '8px 16px', border: 'none', cursor: 'pointer',
+            background: 'transparent',
+            color: aba === t.id ? '#F1F5F9' : '#475569',
+            fontSize: 13, fontWeight: aba === t.id ? 600 : 400,
+            borderBottom: aba === t.id ? '2px solid #3B82F6' : '2px solid transparent',
+          }}>{t.label}</button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p style={{ color: '#334155', fontSize: 14 }}>Carregando...</p>
+      ) : aba === 'saldo' ? (
+        <>
+          <input
+            style={{ ...inp, maxWidth: 320, marginBottom: 16 }}
+            placeholder="🔍 Buscar insumo..."
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+          />
+
+          {saldoFiltrado.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 0', color: '#334155' }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>📦</div>
+              <p style={{ fontSize: 14, color: '#475569', fontWeight: 600 }}>
+                {saldo.length === 0 ? 'Nenhum item em estoque ainda' : 'Nenhum item encontrado'}
+              </p>
+              {saldo.length === 0 && (
+                <p style={{ fontSize: 12, color: '#334155', marginTop: 4 }}>
+                  O estoque é abastecido automaticamente quando uma SC é marcada como "Recebido".
+                </p>
+              )}
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: '#1A1D2E' }}>
+                    {['Insumo', 'Saldo', 'Unidade', 'Atualizado em', ''].map(h => (
+                      <th key={h} style={{ padding: '10px 14px', textAlign: 'left', color: '#475569', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', borderBottom: '1px solid #1E2235' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {saldoFiltrado.map((s, i) => (
+                    <tr key={s.id} style={{ background: i % 2 === 0 ? '#0F1117' : '#0D1020' }}>
+                      <td style={{ padding: '10px 14px', color: '#F1F5F9', fontWeight: 600 }}>{s.insumo_nome}</td>
+                      <td style={{ padding: '10px 14px', color: s.quantidade <= 0 ? '#EF4444' : '#10B981', fontWeight: 700 }}>{s.quantidade}</td>
+                      <td style={{ padding: '10px 14px', color: '#64748B' }}>{s.unidade}</td>
+                      <td style={{ padding: '10px 14px', color: '#64748B', whiteSpace: 'nowrap' }}>{fmtData(s.updated_at)}</td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <button onClick={() => setSaidaModal(s)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #450A0A', background: 'transparent', color: '#EF4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>− Saída</button>
+                          <button onClick={() => setAjusteModal(s)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>⚙ Ajustar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      ) : (
+        // Histórico
+        movs.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#334155' }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>📜</div>
+            <p style={{ fontSize: 14, color: '#475569', fontWeight: 600 }}>Nenhuma movimentação registrada</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {movs.map(m => {
+              const isEntrada = m.tipo === 'entrada'
+              return (
+                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 10, padding: '10px 16px' }}>
+                  <span style={{
+                    width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: isEntrada ? '#064E3B' : '#450A0A', color: isEntrada ? '#6EE7B7' : '#FCA5A5', fontSize: 14, flexShrink: 0,
+                  }}>{isEntrada ? '↓' : '↑'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#F1F5F9' }}>
+                      {m.insumo_nome} — {isEntrada ? '+' : '−'}{m.quantidade} {m.unidade}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+                      {m.responsavel_nome ?? '—'} · {fmtDataHora(m.created_at)}
+                      {m.origem === 'sc' && m.nf_numero && ` · NF ${m.nf_numero}`}
+                      {m.observacoes && ` · ${m.observacoes}`}
+                    </div>
+                  </div>
+                  {m.nf_arquivo_url && (
+                    <a href={m.nf_arquivo_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#3B82F6', flexShrink: 0 }}>📄 Ver NF</a>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
+      )}
+
+      {/* Modal Saída */}
+      {saidaModal && (
+        <ModalMovimento
+          titulo={`Registrar saída — ${saidaModal.insumo_nome}`}
+          insumo={saidaModal}
+          tipo="saida"
+          onConfirm={(qtd, obs) => registrarSaida(saidaModal, qtd, obs)}
+          onClose={() => setSaidaModal(null)}
+        />
+      )}
+
+      {/* Modal Ajuste */}
+      {ajusteModal && (
+        <ModalMovimento
+          titulo={`Ajustar saldo — ${ajusteModal.insumo_nome}`}
+          insumo={ajusteModal}
+          tipo="ajuste"
+          onConfirm={(qtd, obs) => registrarAjuste(ajusteModal, qtd, obs)}
+          onClose={() => setAjusteModal(null)}
+        />
+      )}
+
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24,
+          background: '#064E3B', border: '1px solid #065F46',
+          color: '#6EE7B7', padding: '10px 18px', borderRadius: 10,
+          fontSize: 13, fontWeight: 600, zIndex: 2000,
+        }}>{toast}</div>
+      )}
+    </div>
+  )
+}
+
+function ModalMovimento({ titulo, insumo, tipo, onConfirm, onClose }) {
+  const [valor, setValor] = useState(tipo === 'ajuste' ? String(insumo.quantidade) : '')
+  const [obs,   setObs]   = useState('')
+
+  const inp = {
+    width: '100%', padding: '8px 12px', borderRadius: 7,
+    background: '#0F1117', border: '1px solid #1E2235',
+    color: '#F1F5F9', fontSize: 13, outline: 'none', fontFamily: 'inherit',
+  }
+  const lbl = { fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 5, display: 'block' }
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()} style={{ position: 'fixed', inset: 0, background: '#00000090', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 16, width: 420, maxWidth: '95vw', padding: 24 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>{titulo}</div>
+        <div style={{ fontSize: 12, color: '#475569', marginBottom: 18 }}>Saldo atual: {insumo.quantidade} {insumo.unidade}</div>
+
+        <label style={lbl}>{tipo === 'ajuste' ? 'Nova quantidade total' : 'Quantidade de saída'}</label>
+        <input style={{ ...inp, marginBottom: 14 }} type="number" step="any" value={valor} onChange={e => setValor(e.target.value)} autoFocus />
+
+        <label style={lbl}>Observações {tipo === 'saida' ? '(ex: usado na laje do 2º pav.)' : '(opcional)'}</label>
+        <textarea style={{ ...inp, marginBottom: 18, minHeight: 70, resize: 'vertical' }} value={obs} onChange={e => setObs(e.target.value)} />
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={() => onConfirm(valor, obs)} style={{ padding: '8px 20px', borderRadius: 7, border: 'none', background: tipo === 'saida' ? '#7F1D1D' : 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

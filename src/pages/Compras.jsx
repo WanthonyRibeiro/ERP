@@ -449,6 +449,7 @@ export default function Compras({ session, permissoes }) {
           onSave={handleSave}
           onDelete={handleDelete}
           onDuplicate={handleDuplicate}
+          onRefresh={fetchSolicitacoes}
           session={session}
           onClose={() => setModal(null)}
         />
