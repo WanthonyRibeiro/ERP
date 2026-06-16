@@ -175,6 +175,31 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
     setPrecos(ps => ps.filter(p => p.cotacao_fornecedor_id !== id))
   }
 
+  async function criarOuVincularFornecedor(cotForn) {
+    const nome = cotForn.fornecedor_nome?.trim()
+    if (!nome || nome === 'Novo fornecedor') return
+    if (cotForn.fornecedor_id) return // já está vinculado a um cadastro existente
+
+    // Verifica se já existe um fornecedor com esse nome (case-insensitive)
+    const existente = fornsList.find(f => f.nome.toLowerCase() === nome.toLowerCase())
+    if (existente) {
+      await updateFornecedor(cotForn.id, 'fornecedor_id', existente.id)
+      return
+    }
+
+    // Cria fornecedor novo na tabela principal (com dados mínimos)
+    const { data: novoForn, error } = await supabase.from('fornecedores').insert({
+      nome,
+      categoria: 'Materiais de Construção',
+      ativo: true,
+    }).select('id, nome').single()
+
+    if (error || !novoForn) return
+
+    setFornsList(fl => [...fl, novoForn].sort((a, b) => a.nome.localeCompare(b.nome)))
+    await updateFornecedor(cotForn.id, 'fornecedor_id', novoForn.id)
+  }
+
   async function selectFornFromCadastro(fornId, cotFornId) {
     const forn = fornsList.find(f => f.id === fornId)
     if (!forn) return
@@ -421,6 +446,7 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
 
       if (!novoForn) continue
       setFornecedores(fs => [...fs, novoForn])
+      await criarOuVincularFornecedor(novoForn)
 
       // Insere preços de cada item para esse fornecedor
       for (let ii = 0; ii < dados.itens.length; ii++) {
@@ -458,7 +484,10 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
         ordem: fornecedores.length,
       }).select().single()
       fornId = data?.id
-      if (data) setFornecedores(f => [...f, data])
+      if (data) {
+        setFornecedores(f => [...f, data])
+        await criarOuVincularFornecedor(data)
+      }
     }
 
     if (!fornId) return
@@ -816,6 +845,7 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
                         style={{ ...inp, flex: 1 }}
                         value={f.fornecedor_nome}
                         onChange={e => updateFornecedor(f.id, 'fornecedor_nome', e.target.value)}
+                        onBlur={() => criarOuVincularFornecedor(f)}
                         placeholder="Nome manual"
                       />
                     </div>
