@@ -32,6 +32,7 @@ const MENU = [
     children: [
       { id: 'compras',        icon: '🛒', label: 'Compras (SC)',      modulo: 'compras'        },
       { id: 'relatorio_compras', icon: '📋', label: 'Relatório Compras', modulo: 'relatorio_compras' },
+      { id: 'pedidos_compra',    icon: '📄', label: 'Pedidos de Compra', modulo: 'pedidos_compra' },
       { id: 'cotacoes',       icon: '📊', label: 'Cotações',          modulo: 'cotacoes'       },
       { id: 'insumos',        icon: '📦', label: 'Insumos',           modulo: 'insumos'        },
       { id: 'fornecedores',   icon: '🏢', label: 'Fornecedores',      modulo: 'fornecedores'   },

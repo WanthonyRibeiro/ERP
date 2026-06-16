@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import PedidoCompraModal from './PedidoCompraModal'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function fmtBRL(v) {
@@ -102,6 +103,7 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
   const [loading,      setLoading]      = useState(true)
   const [toast,        setToast]        = useState(null)
   const [aba,          setAba]          = useState('comparativo')
+  const [pedidoModalOpen, setPedidoModalOpen] = useState(false)
 
   useEffect(() => { load() }, [cotacao.id])
 
@@ -672,6 +674,11 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
                 ✓ Finalizar
               </button>
             )}
+            {cotacao.status === 'finalizada' && (
+              <button onClick={() => setPedidoModalOpen(true)} style={{ ...btnBase, background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff' }}>
+                📄 Gerar Pedido de Compra
+              </button>
+            )}
             <button onClick={async () => {
               if (!confirm('Excluir esta cotação? Esta ação não pode ser desfeita.')) return
               await supabase.from('cotacao_precos').delete().in(
@@ -1132,6 +1139,21 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
             </div>
           </div>
         </div>
+      )}
+
+      {pedidoModalOpen && (
+        <PedidoCompraModal
+          cotacao={cotacao}
+          itens={itens}
+          fornecedores={fornecedores}
+          precos={precos}
+          session={session}
+          onClose={() => setPedidoModalOpen(false)}
+          onCreated={(pedido) => {
+            setPedidoModalOpen(false)
+            showToast(`✅ Pedido ${pedido.numero} criado! Acesse "Pedidos de Compra" no menu para imprimir.`)
+          }}
+        />
       )}
 
       {toast && (
