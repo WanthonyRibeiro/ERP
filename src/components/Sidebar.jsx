@@ -49,6 +49,13 @@ const MENU = [
     ],
   },
   {
+    id: 'feedbacks',
+    icon: '🐛',
+    label: 'Bugs & Melhorias',
+    modulo: 'feedbacks',
+    adminOnly: true,
+  },
+  {
     id: 'configuracoes',
     icon: '⚙️',
     label: 'Configurações',

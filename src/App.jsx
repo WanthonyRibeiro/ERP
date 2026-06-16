@@ -11,6 +11,7 @@ import Cotacoes from './pages/Cotacoes'
 import Insumos from './pages/Insumos'
 import Dashboard from './pages/Dashboard'
 import RelatorioCompras from './pages/RelatorioCompras'
+import Feedbacks from './pages/Feedbacks'
 import { usePermissoes } from './lib/usePermissoes'
 import FeedbackButton from './components/FeedbackButton'
 import Sidebar from './components/Sidebar'
@@ -53,6 +54,7 @@ export default function App() {
         {module === 'contratos'     && <Financeiro    session={session} permissoes={permissoes} abaInicial="contratos" />}
         {module === 'compras'            && <Compras          session={session} permissoes={permissoes} />}
         {module === 'relatorio_compras'  && <RelatorioCompras  session={session} />}
+        {module === 'feedbacks'          && <Feedbacks         session={session} />}
         {module === 'cotacoes'      && <Cotacoes      session={session} permissoes={permissoes} />}
         {module === 'insumos'       && <Insumos       session={session} />}
         {module === 'fornecedores'  && <Fornecedores  session={session} />}
