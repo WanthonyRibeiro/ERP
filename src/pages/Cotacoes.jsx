@@ -19,13 +19,25 @@ function precoEqualizado(preco) {
   return unit * (1 - desc / 100) * (1 + bdi / 100)
 }
 
-// Total equalizado de um fornecedor: soma (precoEq * qtd) + frete
+// Total equalizado de um fornecedor: soma (precoEq * qtd) + frete - desconto global
 function totalFornecedor(fornecedor, itens, precos) {
   const subtotal = itens.reduce((acc, item) => {
     const p = precos.find(p => p.cotacao_item_id === item.id && p.cotacao_fornecedor_id === fornecedor.id)
     return acc + precoEqualizado(p) * (parseFloat(item.quantidade) || 1)
   }, 0)
-  return subtotal + (parseFloat(fornecedor.frete) || 0)
+  const comFrete = subtotal + (parseFloat(fornecedor.frete) || 0)
+  const descGlobal = parseFloat(fornecedor.desconto_global_valor) || 0
+  if (descGlobal <= 0) return comFrete
+  if (fornecedor.desconto_global_tipo === 'valor') return Math.max(0, comFrete - descGlobal)
+  return comFrete * (1 - descGlobal / 100)
+}
+
+// Calcula só o subtotal (sem frete nem desconto global) — usado para exibir valor do desconto em R$
+function subtotalFornecedor(fornecedor, itens, precos) {
+  return itens.reduce((acc, item) => {
+    const p = precos.find(p => p.cotacao_item_id === item.id && p.cotacao_fornecedor_id === fornecedor.id)
+    return acc + precoEqualizado(p) * (parseFloat(item.quantidade) || 1)
+  }, 0)
 }
 
 const STATUS_META = {
@@ -799,22 +811,32 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
                             return (
                               <>
                                 <td key={`${item.id}-${f.id}-pu`} style={{ padding: '4px 6px', border: '1px solid #161929' }}>
-                                  <input
-                                    type="number" min="0" step="0.01"
-                                    value={p?.preco_unitario ?? ''}
-                                    onChange={e => updatePreco(item.id, f.id, 'preco_unitario', e.target.value)}
-                                    style={{ ...inp, padding: '4px 6px', fontSize: 12, textAlign: 'right' }}
-                                    placeholder="0,00"
-                                  />
+                                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                    <span style={{ position: 'absolute', left: 6, fontSize: 11, color: '#475569', pointerEvents: 'none' }}>R$</span>
+                                    <input
+                                      type="number" min="0" step="0.01"
+                                      value={p?.preco_unitario ?? ''}
+                                      onChange={e => updatePreco(item.id, f.id, 'preco_unitario', e.target.value)}
+                                      style={{ ...inp, padding: '4px 6px 4px 24px', fontSize: 12, textAlign: 'right' }}
+                                      placeholder="0,00"
+                                    />
+                                  </div>
                                 </td>
                                 <td key={`${item.id}-${f.id}-desc`} style={{ padding: '4px 6px', border: '1px solid #161929' }}>
-                                  <input
-                                    type="number" min="0" max="100" step="0.1"
-                                    value={p?.desconto_pct != null ? Math.round(parseFloat(p.desconto_pct) * 100) / 100 : ''}
-                                    onChange={e => updatePreco(item.id, f.id, 'desconto_pct', e.target.value)}
-                                    style={{ ...inp, padding: '4px 6px', fontSize: 12, textAlign: 'right' }}
-                                    placeholder="0"
-                                  />
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <input
+                                      type="number" min="0" max="100" step="0.1"
+                                      value={p?.desconto_pct != null ? Math.round(parseFloat(p.desconto_pct) * 100) / 100 : ''}
+                                      onChange={e => updatePreco(item.id, f.id, 'desconto_pct', e.target.value)}
+                                      style={{ ...inp, padding: '4px 6px', fontSize: 12, textAlign: 'right', width: 50 }}
+                                      placeholder="0"
+                                    />
+                                    {parseFloat(p?.desconto_pct) > 0 && (
+                                      <span style={{ fontSize: 10, color: '#10B981', whiteSpace: 'nowrap' }}>
+                                        {fmtBRL((parseFloat(p.preco_unitario) || 0) * (parseFloat(p.desconto_pct) / 100) * (parseFloat(item.quantidade) || 1))}
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td key={`${item.id}-${f.id}-bdi`} style={{ padding: '4px 6px', border: '1px solid #161929' }}>
                                   <input
@@ -936,6 +958,35 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
                   <div>
                     <label style={lbl}>Frete (R$)</label>
                     <input style={inp} type="number" min="0" step="0.01" value={f.frete ?? ''} onChange={e => updateFornecedor(f.id, 'frete', parseFloat(e.target.value) || 0)} placeholder="0,00" />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <label style={lbl}>Desconto global na proposta (sobre o total dessa cotação)</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <select
+                      style={{ ...inp, width: 110, flexShrink: 0 }}
+                      value={f.desconto_global_tipo ?? 'percentual'}
+                      onChange={e => updateFornecedor(f.id, 'desconto_global_tipo', e.target.value)}
+                    >
+                      <option value="percentual">% Percentual</option>
+                      <option value="valor">R$ Valor fixo</option>
+                    </select>
+                    <input
+                      style={{ ...inp, flex: 1 }}
+                      type="number" min="0" step="0.01"
+                      value={f.desconto_global_valor ?? ''}
+                      onChange={e => updateFornecedor(f.id, 'desconto_global_valor', parseFloat(e.target.value) || 0)}
+                      placeholder={f.desconto_global_tipo === 'valor' ? '0,00' : '0'}
+                    />
+                    {parseFloat(f.desconto_global_valor) > 0 && (
+                      <span style={{ alignSelf: 'center', fontSize: 11, color: '#10B981', whiteSpace: 'nowrap', minWidth: 90 }}>
+                        {f.desconto_global_tipo === 'valor'
+                          ? `= ${(subtotalFornecedor(f, itens, precos) > 0 ? (parseFloat(f.desconto_global_valor) / (subtotalFornecedor(f, itens, precos) + (parseFloat(f.frete)||0)) * 100).toFixed(1) : 0)}%`
+                          : `= ${fmtBRL((subtotalFornecedor(f, itens, precos) + (parseFloat(f.frete)||0)) * (parseFloat(f.desconto_global_valor)/100))}`
+                        }
+                      </span>
+                    )}
                   </div>
                 </div>
 
