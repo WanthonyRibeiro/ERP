@@ -276,7 +276,7 @@ export default function Compras({ session, permissoes }) {
           {Object.entries(URGENCIA_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
         <select style={selStyle} value={filter.gestao} onChange={e => setFilter(f => ({ ...f, gestao: e.target.value }))}>
-          <option value="all">G.A. + G.E.</option>
+          <option value="all">Todas as gestões</option>
           <option value="GA">Gestão Administrativa</option>
           <option value="GE">Gestão Executiva</option>
         </select>
@@ -346,7 +346,7 @@ export default function Compras({ session, permissoes }) {
                         fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
                         background: sol.gestao === 'GA' ? '#1E3A5F' : '#064E3B',
                         color: sol.gestao === 'GA' ? '#93C5FD' : '#6EE7B7',
-                      }}>{sol.gestao === 'GA' ? 'G.A.' : 'G.E.'}</span>
+                      }}>{sol.gestao === 'GA' ? 'Gestão Administrativa' : 'Gestão Executiva'}</span>
                     )}
                   </div>
                 </div>

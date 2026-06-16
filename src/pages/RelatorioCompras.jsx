@@ -85,7 +85,7 @@ export default function RelatorioCompras({ session }) {
           rows.push({
             'SC':             sc.titulo,
             'Obra':           sc.obra?.nome ?? '—',
-            'Gestão':         sc.gestao ?? '—',
+            'Gestão':         sc.gestao === 'GA' ? 'Gestão Administrativa' : sc.gestao === 'GE' ? 'Gestão Executiva' : '—',
             'Status':         STATUS_META[sc.status]?.label ?? sc.status,
             'Urgência':       URGENCIA_META[sc.urgencia]?.label ?? sc.urgencia,
             'Solicitante':    sc.solicitante_nome,
@@ -102,7 +102,7 @@ export default function RelatorioCompras({ session }) {
         rows.push({
           'SC':          sc.titulo,
           'Obra':        sc.obra?.nome ?? '—',
-          'Gestão':      sc.gestao ?? '—',
+          'Gestão':      sc.gestao === 'GA' ? 'Gestão Administrativa' : sc.gestao === 'GE' ? 'Gestão Executiva' : '—',
           'Status':      STATUS_META[sc.status]?.label ?? sc.status,
           'Urgência':    URGENCIA_META[sc.urgencia]?.label ?? sc.urgencia,
           'Solicitante': sc.solicitante_nome,
@@ -195,7 +195,7 @@ export default function RelatorioCompras({ session }) {
           <div>
             <div style={{ fontSize: 11, color: '#475569', marginBottom: 4 }}>Gestão</div>
             <select style={selStyle} value={filtros.gestao} onChange={e => setFiltros(f => ({ ...f, gestao: e.target.value }))}>
-              <option value="all">G.A. + G.E.</option>
+              <option value="all">Todas as gestões</option>
               <option value="GA">Gestão Administrativa</option>
               <option value="GE">Gestão Executiva</option>
             </select>
@@ -278,8 +278,8 @@ export default function RelatorioCompras({ session }) {
                         <td style={{ padding: '10px 12px', color: '#94A3B8' }}>{sc.obra?.nome ?? '—'}</td>
                         <td style={{ padding: '10px 12px' }}>
                           {sc.gestao && (
-                            <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, background: sc.gestao === 'GA' ? '#1E3A5F' : '#064E3B', color: sc.gestao === 'GA' ? '#93C5FD' : '#6EE7B7' }}>
-                              {sc.gestao}
+                            <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, background: sc.gestao === 'GA' ? '#1E3A5F' : '#064E3B', color: sc.gestao === 'GA' ? '#93C5FD' : '#6EE7B7', whiteSpace: 'nowrap' }}>
+                              {sc.gestao === 'GA' ? 'Gestão Administrativa' : 'Gestão Executiva'}
                             </span>
                           )}
                         </td>
