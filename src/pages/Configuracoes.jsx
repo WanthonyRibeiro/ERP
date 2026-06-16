@@ -43,7 +43,22 @@ export default function Configuracoes({ session }) {
   const [confSenha, setConfSenha] = useState('')
   const [salvando,  setSalvando]  = useState(false)
 
-  useEffect(() => { init() }, [])
+  // Meus reportes
+  const [meusFeedbacks, setMeusFeedbacks] = useState([])
+  const [loadingFeed,   setLoadingFeed]   = useState(true)
+
+  useEffect(() => { init(); loadMeusFeedbacks() }, [])
+
+  async function loadMeusFeedbacks() {
+    setLoadingFeed(true)
+    const { data } = await supabase
+      .from('feedbacks')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('created_at', { ascending: false })
+    setMeusFeedbacks(data ?? [])
+    setLoadingFeed(false)
+  }
 
   async function init() {
     try {
@@ -196,7 +211,48 @@ export default function Configuracoes({ session }) {
     </div>
   )
 
-  // ── Aba Usuários (admin only) ────────────────────────────────────────────
+  // ── Aba Meus Reportes ────────────────────────────────────────────────────
+  function fmtDataFeed(d) {
+    return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  }
+
+  const renderReportes = (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '28px 24px', maxWidth: 640 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>🐛 Meus Reportes</div>
+      <div style={{ fontSize: 12, color: '#475569', marginBottom: 24 }}>Bugs e melhorias que você enviou pelo botão de feedback.</div>
+
+      {loadingFeed ? (
+        <p style={{ color: '#334155', fontSize: 13 }}>Carregando...</p>
+      ) : meusFeedbacks.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '50px 0', color: '#334155' }}>
+          <div style={{ fontSize: 36, marginBottom: 10 }}>🐛</div>
+          <p style={{ fontSize: 14, fontWeight: 600, color: '#475569' }}>Você ainda não enviou nenhum reporte</p>
+          <p style={{ fontSize: 12, color: '#334155', marginTop: 4 }}>Use o botão flutuante 🐛 para reportar bugs ou sugerir melhorias.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {meusFeedbacks.map(f => (
+            <div key={f.id} style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 10, padding: '14px 18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                <div style={{ fontSize: 13, color: '#F1F5F9', whiteSpace: 'pre-wrap', flex: 1 }}>{f.mensagem}</div>
+                <span style={{
+                  padding: '3px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, flexShrink: 0,
+                  background: f.resolvido ? '#064E3B' : '#451A03',
+                  color: f.resolvido ? '#6EE7B7' : '#FCD34D',
+                }}>{f.resolvido ? '✓ Concluído' : '⏳ Pendente'}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#475569', marginTop: 8 }}>
+                <span>{fmtDataFeed(f.created_at)}</span>
+                {f.pagina && <span>📍 {f.pagina}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
+
   const renderUsuarios = (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
       {/* Lista de usuários */}
@@ -342,6 +398,7 @@ export default function Configuracoes({ session }) {
         {[
           ...(isAdmin ? [{ id: 'usuarios', label: '👥 Usuários & Permissões' }] : []),
           { id: 'conta', label: '👤 Minha Conta' },
+          { id: 'reportes', label: '🐛 Meus Reportes' },
         ].map(a => (
           <button key={a.id} onClick={() => setAbaConfig(a.id)} style={{
             padding: '8px 16px', borderRadius: '7px 7px 0 0', border: 'none', cursor: 'pointer',
@@ -355,6 +412,7 @@ export default function Configuracoes({ session }) {
 
       {abaConfig === 'conta'    && renderConta}
       {abaConfig === 'usuarios' && renderUsuarios}
+      {abaConfig === 'reportes' && renderReportes}
 
       {toast && (
         <div style={{
