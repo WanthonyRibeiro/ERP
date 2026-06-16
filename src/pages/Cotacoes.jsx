@@ -623,6 +623,14 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
     }
   }
 
+  // Recebe o desconto em R$ no TOTAL da linha (preço unit. × quantidade) e converte para % antes de salvar
+  function updateDescontoEmReais(itemId, fornId, valorReaisTotal, precoUnitario, quantidade) {
+    const totalLinha = (parseFloat(precoUnitario) || 0) * (parseFloat(quantidade) || 1)
+    if (totalLinha <= 0) return
+    const pct = Math.round((parseFloat(valorReaisTotal) || 0) / totalLinha * 100 * 100) / 100
+    updatePreco(itemId, fornId, 'desconto_pct', pct)
+  }
+
   function getPreco(itemId, fornId) {
     return precos.find(p => p.cotacao_item_id === itemId && p.cotacao_fornecedor_id === fornId)
   }
@@ -830,12 +838,22 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
                                       onChange={e => updatePreco(item.id, f.id, 'desconto_pct', e.target.value)}
                                       style={{ ...inp, padding: '4px 6px', fontSize: 12, textAlign: 'right', width: 50 }}
                                       placeholder="0"
+                                      title="Desconto em %"
                                     />
-                                    {parseFloat(p?.desconto_pct) > 0 && (
-                                      <span style={{ fontSize: 10, color: '#10B981', whiteSpace: 'nowrap' }}>
-                                        {fmtBRL((parseFloat(p.preco_unitario) || 0) * (parseFloat(p.desconto_pct) / 100) * (parseFloat(item.quantidade) || 1))}
-                                      </span>
-                                    )}
+                                    <span style={{ fontSize: 10, color: '#334155' }}>/</span>
+                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                      <span style={{ position: 'absolute', left: 4, fontSize: 9, color: '#475569', pointerEvents: 'none' }}>R$</span>
+                                      <input
+                                        type="number" min="0" step="0.01"
+                                        value={parseFloat(p?.desconto_pct) > 0
+                                          ? (Math.round((parseFloat(p.preco_unitario) || 0) * (parseFloat(p.desconto_pct) / 100) * (parseFloat(item.quantidade) || 1) * 100) / 100)
+                                          : ''}
+                                        onChange={e => updateDescontoEmReais(item.id, f.id, e.target.value, p?.preco_unitario, item.quantidade)}
+                                        style={{ ...inp, padding: '4px 4px 4px 20px', fontSize: 10, textAlign: 'right', width: 64, color: '#10B981' }}
+                                        placeholder="0,00"
+                                        title="Desconto em R$ (total da linha)"
+                                      />
+                                    </div>
                                   </div>
                                 </td>
                                 <td key={`${item.id}-${f.id}-bdi`} style={{ padding: '4px 6px', border: '1px solid #161929' }}>
