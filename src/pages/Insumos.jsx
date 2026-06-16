@@ -750,6 +750,8 @@ export default function Insumos({ session }) {
           </div>
         </div>
       )}
+
+      {toast && (
         <div style={{
           position: 'fixed', bottom: 24, right: 24,
           background: '#064E3B', border: '1px solid #065F46',
