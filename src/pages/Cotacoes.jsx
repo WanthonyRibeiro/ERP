@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import PedidoCompraModal from './PedidoCompraModal'
+import PedidoCompraModal from '../components/PedidoCompraModal'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function fmtBRL(v) {
