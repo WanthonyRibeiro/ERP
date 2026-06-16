@@ -22,6 +22,7 @@ export default function Estoque({ session, permissoes }) {
 
   const [saidaModal, setSaidaModal] = useState(null)
   const [ajusteModal, setAjusteModal] = useState(null)
+  const [novoItemModal, setNovoItemModal] = useState(false)
 
   useEffect(() => { loadObras() }, [])
   useEffect(() => { if (obraId) loadDados() }, [obraId])
@@ -44,6 +45,36 @@ export default function Estoque({ session, permissoes }) {
     setSaldo(r1.data ?? [])
     setMovs(r2.data ?? [])
     setLoading(false)
+  }
+
+  async function registrarNovoItem(nome, quantidade, unidade, observacoes) {
+    const qtd = parseFloat(quantidade)
+    if (!nome?.trim()) { showToast('Informe o nome do insumo'); return }
+    if (!qtd || qtd < 0) { showToast('Quantidade inválida'); return }
+
+    // Verifica se já existe esse insumo no estoque dessa obra
+    const jaExiste = saldo.find(s => s.insumo_nome.toLowerCase() === nome.trim().toLowerCase())
+    if (jaExiste) {
+      showToast('Esse insumo já existe no estoque — use "Ajustar" para alterar a quantidade.')
+      return
+    }
+
+    const userName = session?.user?.user_metadata?.nome ?? session?.user?.email
+    const { error } = await supabase.from('estoque_movimentacoes').insert({
+      obra_id: obraId,
+      insumo_nome: nome.trim(),
+      unidade: unidade || 'un',
+      tipo: 'entrada',
+      quantidade: qtd,
+      origem: 'manual',
+      observacoes: observacoes || 'Cadastro inicial de item no estoque',
+      responsavel_nome: userName,
+      user_id: session.user.id,
+    })
+    if (error) { showToast('Erro ao cadastrar item'); return }
+    setNovoItemModal(false)
+    showToast('✅ Item cadastrado no estoque!')
+    loadDados()
   }
 
   async function registrarSaida(insumo, quantidade, observacoes) {
@@ -153,12 +184,17 @@ export default function Estoque({ session, permissoes }) {
         <p style={{ color: '#334155', fontSize: 14 }}>Carregando...</p>
       ) : aba === 'saldo' ? (
         <>
-          <input
-            style={{ ...inp, maxWidth: 320, marginBottom: 16 }}
-            placeholder="🔍 Buscar insumo..."
-            value={busca}
-            onChange={e => setBusca(e.target.value)}
-          />
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              style={{ ...inp, maxWidth: 320 }}
+              placeholder="🔍 Buscar insumo..."
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+            />
+            <button onClick={() => setNovoItemModal(true)} style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              + Novo Item
+            </button>
+          </div>
 
           {saldoFiltrado.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 0', color: '#334155' }}>
@@ -168,7 +204,7 @@ export default function Estoque({ session, permissoes }) {
               </p>
               {saldo.length === 0 && (
                 <p style={{ fontSize: 12, color: '#334155', marginTop: 4 }}>
-                  O estoque é abastecido automaticamente quando uma SC é marcada como "Recebido".
+                  Use "+ Novo Item" para cadastrar manualmente, ou o estoque é abastecido automaticamente quando uma SC é marcada como "Recebido".
                 </p>
               )}
             </div>
@@ -239,6 +275,14 @@ export default function Estoque({ session, permissoes }) {
         )
       )}
 
+      {/* Modal Novo Item */}
+      {novoItemModal && (
+        <ModalNovoItem
+          onConfirm={registrarNovoItem}
+          onClose={() => setNovoItemModal(false)}
+        />
+      )}
+
       {/* Modal Saída */}
       {saidaModal && (
         <ModalMovimento
@@ -269,6 +313,57 @@ export default function Estoque({ session, permissoes }) {
           fontSize: 13, fontWeight: 600, zIndex: 2000,
         }}>{toast}</div>
       )}
+    </div>
+  )
+}
+
+function ModalNovoItem({ onConfirm, onClose }) {
+  const [nome, setNome] = useState('')
+  const [unidade, setUnidade] = useState('un')
+  const [quantidade, setQuantidade] = useState('')
+  const [obs, setObs] = useState('')
+
+  const inp = {
+    width: '100%', padding: '8px 12px', borderRadius: 7,
+    background: '#0F1117', border: '1px solid #1E2235',
+    color: '#F1F5F9', fontSize: 13, outline: 'none', fontFamily: 'inherit',
+  }
+  const lbl = { fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 5, display: 'block' }
+
+  const UNIDADES = ['un', 'kg', 'm', 'm²', 'm³', 'l', 'cx', 'sc', 'pç', 'rl', 'br12m']
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()} style={{ position: 'fixed', inset: 0, background: '#00000090', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 16, width: 420, maxWidth: '95vw', padding: 24 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>+ Cadastrar item no estoque</div>
+        <div style={{ fontSize: 12, color: '#475569', marginBottom: 18 }}>Para insumos que ainda não passaram por uma SC.</div>
+
+        <label style={lbl}>Nome do insumo</label>
+        <input style={{ ...inp, marginBottom: 14 }} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Cimento CP-II 50kg" autoFocus />
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: 10, marginBottom: 14 }}>
+          <div>
+            <label style={lbl}>Quantidade</label>
+            <input style={inp} type="number" step="any" value={quantidade} onChange={e => setQuantidade(e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Unidade</label>
+            <select style={inp} value={unidade} onChange={e => setUnidade(e.target.value)}>
+              {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <label style={lbl}>Observações (opcional)</label>
+        <textarea style={{ ...inp, marginBottom: 18, minHeight: 60, resize: 'vertical' }} value={obs} onChange={e => setObs(e.target.value)} placeholder="Ex: Material já existente na obra antes do sistema" />
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={() => onConfirm(nome, quantidade, unidade, obs)} style={{ padding: '8px 20px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+            Cadastrar
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
