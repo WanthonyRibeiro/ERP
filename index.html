@@ -2,12 +2,23 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>SA Pride</title>
-    <link rel="icon" href="/logo.PNG">
+    <link rel="icon" href="/logo.png">
+
+    <!-- PWA: manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#355E35">
+
+    <!-- PWA: iOS específico (Safari não lê manifest.json sozinho) -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SA Pride Estoque">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet">
     <style>
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }as
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       body { font-family: 'DM Sans', sans-serif; background: #0F1117; }
       * { -webkit-tap-highlight-color: transparent; }
       input, select, textarea, button { font-family: inherit; }
@@ -15,10 +26,20 @@
         ::-webkit-scrollbar { width: 4px; height: 4px; }
       }
     </style>
-    <meta name="theme-color" content="#0D1020">
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- PWA: registra o service worker -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {
+            // Falha silenciosa: o app continua funcionando normalmente sem o SW
+          })
+        })
+      }
+    </script>
   </body>
 </html>

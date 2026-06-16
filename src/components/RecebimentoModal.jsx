@@ -122,12 +122,27 @@ export default function RecebimentoModal({ sc, itens, session, onClose, onConfir
           <input style={{ ...inp, marginBottom: 14 }} value={nfNumero} onChange={e => setNfNumero(e.target.value)} placeholder="Ex: 123456" />
 
           <label style={lbl}>Anexar Nota Fiscal (PDF ou foto)</label>
-          <input
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png"
-            onChange={e => setNfArquivo(e.target.files[0])}
-            style={{ ...inp, padding: '7px' }}
-          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <label style={{ ...inp, flex: 1, padding: '7px', textAlign: 'center', cursor: 'pointer', color: '#94A3B8' }}>
+              📷 Tirar foto
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={e => setNfArquivo(e.target.files[0])}
+                style={{ display: 'none' }}
+              />
+            </label>
+            <label style={{ ...inp, flex: 1, padding: '7px', textAlign: 'center', cursor: 'pointer', color: '#94A3B8' }}>
+              📁 Escolher arquivo
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={e => setNfArquivo(e.target.files[0])}
+                style={{ display: 'none' }}
+              />
+            </label>
+          </div>
           {nfArquivo && (
             <div style={{ fontSize: 11, color: '#10B981', marginTop: 6 }}>✓ {nfArquivo.name}</div>
           )}
