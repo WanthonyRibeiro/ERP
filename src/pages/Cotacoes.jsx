@@ -207,6 +207,65 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
     await updateFornecedor(cotFornId, 'fornecedor_nome', forn.nome)
   }
 
+  // ── Normalização de insumos de aço (bitola → nome padronizado) ──────────
+  const ACO_BITOLAS = {
+    '5':    { peso_m: 0.154, nome: 'Aço CA-50 ø 5,0mm'   },
+    '6.3':  { peso_m: 0.245, nome: 'Aço CA-50 ø 6,3mm'   },
+    '8':    { peso_m: 0.395, nome: 'Aço CA-50 ø 8,0mm'   },
+    '10':   { peso_m: 0.617, nome: 'Aço CA-50 ø 10,0mm'  },
+    '12.5': { peso_m: 0.963, nome: 'Aço CA-50 ø 12,5mm'  },
+    '16':   { peso_m: 1.578, nome: 'Aço CA-50 ø 16,0mm'  },
+    '20':   { peso_m: 2.466, nome: 'Aço CA-50 ø 20,0mm'  },
+    '25':   { peso_m: 3.853, nome: 'Aço CA-50 ø 25,0mm'  },
+    '32':   { peso_m: 6.313, nome: 'Aço CA-50 ø 32,0mm'  },
+  }
+
+  // Detecta bitola de aço numa descrição livre (ex: "2º PAVIMENTO 5,00mm" → "5")
+  function detectarBitolaAco(descricao) {
+    const m = String(descricao).match(/(\d+(?:[.,]\d+)?)\s*mm/i)
+    if (!m) return null
+    const valor = m[1].replace(',', '.')
+    // Normaliza pra uma das chaves conhecidas (6.3, 12.5 etc tem casas decimais específicas)
+    const chaves = Object.keys(ACO_BITOLAS)
+    const encontrada = chaves.find(k => parseFloat(k) === parseFloat(valor))
+    return encontrada ?? null
+  }
+
+  // Para cada item importado, tenta achar/criar o insumo padronizado e retorna a descrição correta
+  async function normalizarItemImportado(descricaoOriginal) {
+    const bitola = detectarBitolaAco(descricaoOriginal)
+    if (!bitola) return descricaoOriginal // não é aço com bitola detectável, mantém original
+
+    const nomePadronizado = ACO_BITOLAS[bitola].nome
+
+    // Já existe esse insumo cadastrado?
+    const existente = insumos.find(i => i.nome.toLowerCase() === nomePadronizado.toLowerCase())
+    if (existente) return nomePadronizado
+
+    // Não existe — cria o insumo automaticamente
+    const proximoCodigo = String(
+      Math.max(0, ...insumos.map(i => parseInt(i.codigo) || 0)) + 1
+    ).padStart(5, '0')
+
+    const { data: novoInsumo, error } = await supabase.from('insumos').insert({
+      codigo: proximoCodigo,
+      nome: nomePadronizado,
+      categoria: 'Estrutura',
+      tipo: 'Aço CA-50',
+      unidade_compra: 'kg',
+      unidade_uso: 'kg',
+      fator_conversao: 1,
+      diametro_mm: parseFloat(bitola),
+      comprimento_m: 12,
+      ativo: true,
+    }).select('id, codigo, nome, unidade_compra, preco_referencia').single()
+
+    if (error || !novoInsumo) return nomePadronizado // mesmo se falhar o cadastro, usa o nome padronizado
+
+    setInsumos(prev => [...prev, novoInsumo].sort((a, b) => a.nome.localeCompare(b.nome)))
+    return nomePadronizado
+  }
+
   // ── IMPORTAÇÃO DETERMINÍSTICA: planilha de equalização (fornecedores em colunas) ──
   async function tentarImportarEqualizacao(file) {
     const XLSX = await import('xlsx')
@@ -272,6 +331,11 @@ function CotacaoDetalhe({ cotacao, session, onBack, onUpdate }) {
       r++
     }
     if (!itens.length) return null
+
+    // Normaliza descrições de aço (bitola → nome padronizado, criando insumo se necessário)
+    for (const it of itens) {
+      it.descricao = await normalizarItemImportado(it.descricao)
+    }
 
     // Coleta condições de pagamento, frete, desconto (linhas depois dos itens)
     const condicoes = fornecedores.map(() => ({ pagamento: '', frete: 0, desconto: 0, totalProposta: 0 }))
