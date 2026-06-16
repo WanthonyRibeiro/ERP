@@ -617,7 +617,7 @@ Retorne APENAS um JSON válido no formato abaixo, sem texto adicional:
               await supabase.from('cotacao_itens').delete().eq('cotacao_id', cotacao.id)
               await supabase.from('cotacao_fornecedores').delete().eq('cotacao_id', cotacao.id)
               await supabase.from('cotacoes').delete().eq('id', cotacao.id)
-              onBack()
+              await onBack()
             }} style={{ ...btnBase, background: 'transparent', border: '1px solid #7F1D1D', color: '#FCA5A5' }}>
               🗑 Excluir
             </button>
@@ -1153,7 +1153,7 @@ export default function Cotacoes({ session, permissoes }) {
       <CotacaoDetalhe
         cotacao={detalhe}
         session={session}
-        onBack={() => { setDetalhe(null); init() }}
+        onBack={async () => { await init(); setDetalhe(null) }}
         onUpdate={init}
       />
     )
@@ -1173,7 +1173,12 @@ export default function Cotacoes({ session, permissoes }) {
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>Cotações</h1>
           <p style={{ fontSize: 13, color: '#475569' }}>Compare propostas de fornecedores e escolha as melhores condições.</p>
         </div>
-        <button onClick={() => obras.length ? setModal(true) : alert('Cadastre ao menos uma obra primeiro.')} style={{
+        <button onClick={async () => {
+          if (!obras.length) { alert('Cadastre ao menos uma obra primeiro.'); return }
+          const { data: scsData } = await supabase.from('solicitacoes_compra').select('id, titulo, obra_id, status').eq('status', 'aprovada').order('created_at', { ascending: false })
+          setScs(scsData ?? [])
+          setModal(true)
+        }} style={{
           padding: '9px 18px', borderRadius: 8, border: 'none',
           background: 'linear-gradient(135deg, #3B82F6, #6366F1)',
           color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',

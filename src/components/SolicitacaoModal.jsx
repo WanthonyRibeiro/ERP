@@ -147,10 +147,13 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
 
 
   const importFileRef = useRef()
+  const [importando, setImportando] = useState(false)
 
   async function handleImportFile(e) {
     const file = e.target.files[0]; if (!file) return
+    if (importando) { e.target.value = ''; return } // já processando, ignora cliques extras
     const ext = file.name.split('.').pop().toLowerCase()
+    setImportando(true)
 
     // CSV or XLSX
     if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
@@ -174,6 +177,9 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
       } else {
         showImportToast('Nenhum item encontrado. Verifique as colunas.')
       }
+      setImportando(false)
+      e.target.value = ''
+      return
     }
 
     // Imagem — envia para Claude analisar (via API Anthropic)
@@ -209,10 +215,17 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
           }
         } catch(err) {
           showImportToast('Erro ao analisar imagem.')
+        } finally {
+          setImportando(false)
         }
       }
       reader.readAsDataURL(file)
+      e.target.value = ''
+      return
     }
+
+    // Extensão não suportada
+    setImportando(false)
     e.target.value = ''
   }
 
@@ -223,16 +236,24 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
   function removeItem(id)    { setItems(its => its.filter(i => i.id !== id)) }
   function setItem(id, k, v) { if (!locked) setItems(its => its.map(i => i.id === id ? { ...i, [k]: v } : i)) }
 
-  function handleSave(statusOverride) {
+  const [salvando, setSalvando] = useState(false)
+
+  async function handleSave(statusOverride) {
+    if (salvando) return // já está processando, ignora cliques extras
     if (!form.titulo || !form.obra_id || !form.gestao) return
-    onSave({
-      ...solicitacao,
-      ...form,
-      status: statusOverride ?? form.status,
-      itens: items.filter(i => i.descricao?.trim()),
-      _acao: statusOverride ?? (isNew ? 'criada' : 'editada'),
-      _userName: userName,
-    })
+    setSalvando(true)
+    try {
+      await onSave({
+        ...solicitacao,
+        ...form,
+        status: statusOverride ?? form.status,
+        itens: items.filter(i => i.descricao?.trim()),
+        _acao: statusOverride ?? (isNew ? 'criada' : 'editada'),
+        _userName: userName,
+      })
+    } finally {
+      setSalvando(false)
+    }
   }
 
   const smeta = STATUS_META[form.status]  ?? STATUS_META.pendente
@@ -435,9 +456,14 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
                   <label style={{ ...lbl, marginBottom: 0 }}>Itens solicitados</label>
                   {!locked && (
                     <div style={{display:'flex',gap:6}}>
-                    <label style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#64748B', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                      ↑ Importar
-                      <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp" style={{display:'none'}} onChange={handleImportFile} />
+                    <label style={{
+                      padding: '4px 10px', borderRadius: 6, border: '1px solid #334155',
+                      background: 'transparent', color: importando ? '#334155' : '#64748B',
+                      fontSize: 12, fontWeight: 600, cursor: importando ? 'default' : 'pointer',
+                      opacity: importando ? 0.6 : 1,
+                    }}>
+                      {importando ? '⏳ Processando...' : '↑ Importar'}
+                      <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp" style={{display:'none'}} onChange={handleImportFile} disabled={importando} />
                     </label>
                     <button onClick={addItem} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #1E3A5F', background: 'transparent', color: '#3B82F6', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Adicionar item</button>
                   </div>
@@ -753,23 +779,23 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             {form.status === 'pendente' && !isNew && (
               <>
-                <button onClick={() => handleSave('aprovada')} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#1E3A5F', color: '#93C5FD', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>✓ Aprovar</button>
-                <button onClick={() => setShowReject(r => !r)} style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #991B1B', background: 'transparent', color: '#FCA5A5', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>✕ Rejeitar</button>
+                <button disabled={salvando} onClick={() => handleSave('aprovada')} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#1E3A5F', color: '#93C5FD', fontWeight: 600, fontSize: 12, cursor: salvando ? 'default' : 'pointer', opacity: salvando ? 0.6 : 1 }}>✓ Aprovar</button>
+                <button disabled={salvando} onClick={() => setShowReject(r => !r)} style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #991B1B', background: 'transparent', color: '#FCA5A5', fontWeight: 600, fontSize: 12, cursor: salvando ? 'default' : 'pointer', opacity: salvando ? 0.6 : 1 }}>✕ Rejeitar</button>
               </>
             )}
             {form.status === 'aprovada' && (
-              <button onClick={() => handleSave('em_pedido')} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#2E1065', color: '#C4B5FD', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>📦 Marcar como pedido</button>
+              <button disabled={salvando} onClick={() => handleSave('em_pedido')} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#2E1065', color: '#C4B5FD', fontWeight: 600, fontSize: 12, cursor: salvando ? 'default' : 'pointer', opacity: salvando ? 0.6 : 1 }}>📦 Marcar como pedido</button>
             )}
             {form.status === 'em_pedido' && (
-              <button onClick={() => setRecebimentoOpen(true)} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#064E3B', color: '#6EE7B7', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>✓ Marcar como recebido</button>
+              <button disabled={salvando} onClick={() => setRecebimentoOpen(true)} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#064E3B', color: '#6EE7B7', fontWeight: 600, fontSize: 12, cursor: salvando ? 'default' : 'pointer', opacity: salvando ? 0.6 : 1 }}>✓ Marcar como recebido</button>
             )}
-            <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+            <button disabled={salvando} onClick={onClose} style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontWeight: 600, fontSize: 13, cursor: salvando ? 'default' : 'pointer', opacity: salvando ? 0.6 : 1 }}>Cancelar</button>
             {!locked && (
-              <button onClick={() => showReject ? handleSave('rejeitada') : handleSave()} style={{
+              <button disabled={salvando} onClick={() => showReject ? handleSave('rejeitada') : handleSave()} style={{
                 padding: '8px 18px', borderRadius: 7, border: 'none',
                 background: showReject ? '#7F1D1D' : 'linear-gradient(135deg, #3B82F6, #6366F1)',
-                color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
-              }}>{isNew ? 'Enviar solicitação' : showReject ? 'Confirmar rejeição' : 'Salvar'}</button>
+                color: '#fff', fontWeight: 700, fontSize: 13, cursor: salvando ? 'default' : 'pointer', opacity: salvando ? 0.7 : 1,
+              }}>{salvando ? 'Enviando...' : isNew ? 'Enviar solicitação' : showReject ? 'Confirmar rejeição' : 'Salvar'}</button>
             )}
           </div>
         </div>
