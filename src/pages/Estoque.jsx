@@ -50,6 +50,20 @@ export default function Estoque({ session, permissoes }) {
     setLoading(false)
   }
 
+  async function excluirInsumo(insumo) {
+    if (!confirm(`Excluir "${insumo.insumo_nome}" do estoque?\n\nIsso vai apagar TODO o histórico de movimentações desse item, sem possibilidade de desfazer.`)) return
+    if (!confirm('Tem certeza mesmo? Essa ação é irreversível.')) return
+
+    const { error: errMov } = await supabase.from('estoque_movimentacoes').delete().eq('obra_id', obraId).eq('insumo_nome', insumo.insumo_nome)
+    if (errMov) { showToast('Erro ao excluir histórico: ' + errMov.message); return }
+
+    const { error: errSaldo } = await supabase.from('estoque_saldo').delete().eq('id', insumo.id)
+    if (errSaldo) { showToast('Erro ao excluir item: ' + errSaldo.message); return }
+
+    showToast('🗑️ Item excluído permanentemente.')
+    loadDados()
+  }
+
   async function renomearInsumo(insumoAntigo, nomeNovo, unidadeNova) {
     if (!nomeNovo?.trim()) { showToast('Informe o nome do insumo'); return }
     const jaExiste = saldo.find(s => s.id !== insumoAntigo.id && s.insumo_nome.toLowerCase() === nomeNovo.trim().toLowerCase())
@@ -303,6 +317,9 @@ export default function Estoque({ session, permissoes }) {
                           <button onClick={() => setEditarModal(s)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #1E2235', background: 'transparent', color: '#3B82F6', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>✎ Editar</button>
                           <button onClick={() => setSaidaModal(s)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #450A0A', background: 'transparent', color: '#EF4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>− Saída</button>
                           <button onClick={() => setAjusteModal(s)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>⚙ Ajustar</button>
+                          {permissoes?.isAdmin && (
+                            <button onClick={() => excluirInsumo(s)} title="Excluir item (admin)" style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #7F1D1D', background: 'transparent', color: '#EF4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>🗑️</button>
+                          )}
                         </div>
                       </td>
                     </tr>
