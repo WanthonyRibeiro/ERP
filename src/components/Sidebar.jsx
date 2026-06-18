@@ -57,6 +57,13 @@ const MENU = [
     adminOnly: true,
   },
   {
+    id: 'dados_empresa',
+    icon: '🏢',
+    label: 'Dados da Empresa',
+    modulo: 'dados_empresa',
+    adminOnly: true,
+  },
+  {
     id: 'configuracoes',
     icon: '⚙️',
     label: 'Configurações',
@@ -70,7 +77,7 @@ const ALL_MODULOS = MENU.flatMap(m => m.children ? m.children.map(c => c.modulo)
 export default function Sidebar({ active, onChange, userEmail, session }) {
   const [perms,      setPerms]      = useState(null) // null = carregando
   const [isAdmin,    setIsAdmin]    = useState(false)
-  const [openGroups, setOpenGroups] = useState({ engenharia: true, suprimentos: true, financeiro: true })
+  const [openGroups, setOpenGroups] = useState({ engenharia: false, suprimentos: false, financeiro: false })
   const [mobileOpen, setMobileOpen] = useState(false)
   const userName = session?.user?.user_metadata?.nome ?? userEmail
 
