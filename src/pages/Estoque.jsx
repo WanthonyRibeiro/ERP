@@ -23,6 +23,9 @@ export default function Estoque({ session, permissoes }) {
   const [saidaModal, setSaidaModal] = useState(null)
   const [ajusteModal, setAjusteModal] = useState(null)
   const [novoItemModal, setNovoItemModal] = useState(false)
+  const [editarModal, setEditarModal] = useState(null)
+  const [exportando, setExportando] = useState(false)
+  const [filtroHist, setFiltroHist] = useState({ inicio: '', fim: '', responsavel: '' })
 
   useEffect(() => { loadObras() }, [])
   useEffect(() => { if (obraId) loadDados() }, [obraId])
@@ -46,6 +49,67 @@ export default function Estoque({ session, permissoes }) {
     setMovs(r2.data ?? [])
     setLoading(false)
   }
+
+  async function renomearInsumo(insumoAntigo, nomeNovo, unidadeNova) {
+    if (!nomeNovo?.trim()) { showToast('Informe o nome do insumo'); return }
+    const jaExiste = saldo.find(s => s.id !== insumoAntigo.id && s.insumo_nome.toLowerCase() === nomeNovo.trim().toLowerCase())
+    if (jaExiste) { showToast('Já existe outro item com esse nome — não é possível duplicar.'); return }
+
+    const { error } = await supabase.rpc('renomear_insumo_estoque', {
+      p_obra_id: obraId,
+      p_nome_antigo: insumoAntigo.insumo_nome,
+      p_nome_novo: nomeNovo.trim(),
+      p_unidade_nova: unidadeNova || insumoAntigo.unidade,
+    })
+    if (error) { showToast('Erro ao renomear: ' + error.message); return }
+    setEditarModal(null)
+    showToast('✅ Item atualizado!')
+    loadDados()
+  }
+
+  async function exportarExcel() {
+    setExportando(true)
+    try {
+      const XLSX = await import('xlsx')
+      const obraNome = obras.find(o => o.id === obraId)?.nome ?? 'Obra'
+
+      const saldoRows = saldo.map(s => ({
+        'Insumo': s.insumo_nome,
+        'Saldo': s.quantidade,
+        'Unidade': s.unidade,
+        'Atualizado em': s.updated_at ? new Date(s.updated_at).toLocaleDateString('pt-BR') : '',
+      }))
+
+      const movsRows = movs.map(m => ({
+        'Data': m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : '',
+        'Insumo': m.insumo_nome,
+        'Tipo': m.tipo === 'entrada' ? 'Entrada' : m.tipo === 'saida' ? 'Saída' : 'Ajuste',
+        'Quantidade': m.quantidade,
+        'Unidade': m.unidade,
+        'Responsável': m.responsavel_nome ?? '',
+        'NF': m.nf_numero ?? '',
+        'Observações': m.observacoes ?? '',
+      }))
+
+      const wb = XLSX.utils.book_new()
+      const wsSaldo = XLSX.utils.json_to_sheet(saldoRows)
+      const wsMovs = XLSX.utils.json_to_sheet(movsRows)
+      XLSX.utils.book_append_sheet(wb, wsSaldo, 'Saldo Atual')
+      XLSX.utils.book_append_sheet(wb, wsMovs, 'Movimentações')
+      XLSX.writeFile(wb, `Estoque_${obraNome.replace(/[^a-zA-Z0-9]/g,'_')}_${new Date().toISOString().slice(0,10)}.xlsx`)
+      showToast('✅ Excel exportado!')
+    } catch (err) {
+      showToast('Erro ao exportar: ' + err.message)
+    }
+    setExportando(false)
+  }
+
+  const movsFiltrados = movs.filter(m => {
+    if (filtroHist.inicio && m.created_at < filtroHist.inicio) return false
+    if (filtroHist.fim && m.created_at > filtroHist.fim + 'T23:59:59') return false
+    if (filtroHist.responsavel && !m.responsavel_nome?.toLowerCase().includes(filtroHist.responsavel.toLowerCase())) return false
+    return true
+  })
 
   async function registrarNovoItem(nome, quantidade, unidade, observacoes) {
     const qtd = parseFloat(quantidade)
@@ -145,9 +209,18 @@ export default function Estoque({ session, permissoes }) {
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>🗃️ Estoque</h1>
           <p style={{ fontSize: 13, color: '#475569' }}>Saldo de insumos por obra e histórico de movimentações.</p>
         </div>
-        <select style={selStyle} value={obraId} onChange={e => setObraId(e.target.value)}>
-          {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
-        </select>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={exportarExcel} disabled={exportando || !saldo.length} style={{
+            padding: '7px 14px', borderRadius: 7, border: '1px solid #1E2235', background: 'transparent',
+            color: exportando ? '#334155' : '#10B981', fontSize: 12, fontWeight: 600, cursor: exportando ? 'default' : 'pointer',
+            opacity: !saldo.length ? 0.5 : 1,
+          }}>
+            {exportando ? '⏳ Exportando...' : '📊 Exportar Excel'}
+          </button>
+          <select style={selStyle} value={obraId} onChange={e => setObraId(e.target.value)}>
+            {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+          </select>
+        </div>
       </div>
 
       {/* Stats */}
@@ -227,6 +300,7 @@ export default function Estoque({ session, permissoes }) {
                       <td style={{ padding: '10px 14px', color: '#64748B', whiteSpace: 'nowrap' }}>{fmtData(s.updated_at)}</td>
                       <td style={{ padding: '10px 14px' }}>
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <button onClick={() => setEditarModal(s)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #1E2235', background: 'transparent', color: '#3B82F6', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>✎ Editar</button>
                           <button onClick={() => setSaidaModal(s)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #450A0A', background: 'transparent', color: '#EF4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>− Saída</button>
                           <button onClick={() => setAjusteModal(s)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>⚙ Ajustar</button>
                         </div>
@@ -240,39 +314,61 @@ export default function Estoque({ session, permissoes }) {
         </>
       ) : (
         // Histórico
-        movs.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: '#334155' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>📜</div>
-            <p style={{ fontSize: 14, color: '#475569', fontWeight: 600 }}>Nenhuma movimentação registrada</p>
+        <>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div>
+              <label style={{ fontSize: 11, color: '#475569', display: 'block', marginBottom: 4 }}>De</label>
+              <input type="date" style={selStyle} value={filtroHist.inicio} onChange={e => setFiltroHist(f => ({ ...f, inicio: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#475569', display: 'block', marginBottom: 4 }}>Até</label>
+              <input type="date" style={selStyle} value={filtroHist.fim} onChange={e => setFiltroHist(f => ({ ...f, fim: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#475569', display: 'block', marginBottom: 4 }}>Responsável</label>
+              <input style={{ ...selStyle, minWidth: 160 }} placeholder="Buscar por nome..." value={filtroHist.responsavel} onChange={e => setFiltroHist(f => ({ ...f, responsavel: e.target.value }))} />
+            </div>
+            {(filtroHist.inicio || filtroHist.fim || filtroHist.responsavel) && (
+              <button onClick={() => setFiltroHist({ inicio: '', fim: '', responsavel: '' })} style={{ ...selStyle, color: '#EF4444', cursor: 'pointer' }}>✕ Limpar filtros</button>
+            )}
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {movs.map(m => {
-              const isEntrada = m.tipo === 'entrada'
-              return (
-                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 10, padding: '10px 16px' }}>
-                  <span style={{
-                    width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: isEntrada ? '#064E3B' : '#450A0A', color: isEntrada ? '#6EE7B7' : '#FCA5A5', fontSize: 14, flexShrink: 0,
-                  }}>{isEntrada ? '↓' : '↑'}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#F1F5F9' }}>
-                      {m.insumo_nome} — {isEntrada ? '+' : '−'}{m.quantidade} {m.unidade}
+
+          {movsFiltrados.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 0', color: '#334155' }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>📜</div>
+              <p style={{ fontSize: 14, color: '#475569', fontWeight: 600 }}>
+                {movs.length === 0 ? 'Nenhuma movimentação registrada' : 'Nenhuma movimentação encontrada com esses filtros'}
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {movsFiltrados.map(m => {
+                const isEntrada = m.tipo === 'entrada'
+                return (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 10, padding: '10px 16px' }}>
+                    <span style={{
+                      width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: isEntrada ? '#064E3B' : '#450A0A', color: isEntrada ? '#6EE7B7' : '#FCA5A5', fontSize: 14, flexShrink: 0,
+                    }}>{isEntrada ? '↓' : '↑'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#F1F5F9' }}>
+                        {m.insumo_nome} — {isEntrada ? '+' : '−'}{m.quantidade} {m.unidade}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+                        {m.responsavel_nome ?? '—'} · {fmtDataHora(m.created_at)}
+                        {m.origem === 'sc' && m.nf_numero && ` · NF ${m.nf_numero}`}
+                        {m.observacoes && ` · ${m.observacoes}`}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
-                      {m.responsavel_nome ?? '—'} · {fmtDataHora(m.created_at)}
-                      {m.origem === 'sc' && m.nf_numero && ` · NF ${m.nf_numero}`}
-                      {m.observacoes && ` · ${m.observacoes}`}
-                    </div>
+                    {m.nf_arquivo_url && (
+                      <a href={m.nf_arquivo_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#3B82F6', flexShrink: 0 }}>📄 Ver NF</a>
+                    )}
                   </div>
-                  {m.nf_arquivo_url && (
-                    <a href={m.nf_arquivo_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#3B82F6', flexShrink: 0 }}>📄 Ver NF</a>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {/* Modal Novo Item */}
@@ -280,6 +376,15 @@ export default function Estoque({ session, permissoes }) {
         <ModalNovoItem
           onConfirm={registrarNovoItem}
           onClose={() => setNovoItemModal(false)}
+        />
+      )}
+
+      {/* Modal Editar Item */}
+      {editarModal && (
+        <ModalEditarItem
+          insumo={editarModal}
+          onConfirm={renomearInsumo}
+          onClose={() => setEditarModal(null)}
         />
       )}
 
@@ -313,6 +418,45 @@ export default function Estoque({ session, permissoes }) {
           fontSize: 13, fontWeight: 600, zIndex: 2000,
         }}>{toast}</div>
       )}
+    </div>
+  )
+}
+
+function ModalEditarItem({ insumo, onConfirm, onClose }) {
+  const [nome, setNome] = useState(insumo.insumo_nome)
+  const [unidade, setUnidade] = useState(insumo.unidade)
+
+  const inp = {
+    width: '100%', padding: '8px 12px', borderRadius: 7,
+    background: '#0F1117', border: '1px solid #1E2235',
+    color: '#F1F5F9', fontSize: 13, outline: 'none', fontFamily: 'inherit',
+  }
+  const lbl = { fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 5, display: 'block' }
+  const UNIDADES = ['un', 'kg', 'm', 'm²', 'm³', 'l', 'cx', 'sc', 'pç', 'rl', 'barra']
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()} style={{ position: 'fixed', inset: 0, background: '#00000090', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div style={{ background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 16, width: 420, maxWidth: '95vw', padding: 24 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>✎ Editar item</div>
+        <div style={{ fontSize: 12, color: '#475569', marginBottom: 18 }}>
+          Atualiza o nome em todo o histórico de movimentações também.
+        </div>
+
+        <label style={lbl}>Nome do insumo</label>
+        <input style={{ ...inp, marginBottom: 14 }} value={nome} onChange={e => setNome(e.target.value)} autoFocus />
+
+        <label style={lbl}>Unidade</label>
+        <select style={{ ...inp, marginBottom: 18 }} value={unidade} onChange={e => setUnidade(e.target.value)}>
+          {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+        </select>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={() => onConfirm(insumo, nome, unidade)} style={{ padding: '8px 20px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+            Salvar
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
