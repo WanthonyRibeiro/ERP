@@ -1955,11 +1955,157 @@ function Contratos({ obra }) {
 }
 
 
+// ── Relatórios: comparativo entre todas as obras ──────────────────────────
+function Relatorios({ obras, session, permissoes }) {
+  const [dados,   setDados]   = useState([])
+  const [loading, setLoading] = useState(true)
+  const [ordenacao, setOrdenacao] = useState('nome') // nome | gasto | avanco | boletos
+
+  useEffect(() => { load() }, [JSON.stringify(obras.map(o=>o.id))])
+
+  async function load() {
+    setLoading(true)
+    const resultados = await Promise.all(obras.map(async (obra) => {
+      const [{ data: orc }, { data: meds }, { data: boletos }] = await Promise.all([
+        supabase.from('orcamento_itens').select('quantidade,valor_unit,tipo').eq('obra_id', obra.id),
+        supabase.from('medicoes').select('id,status').eq('obra_id', obra.id),
+        supabase.from('boletos').select('valor,status,vencimento').eq('obra_id', obra.id),
+      ])
+      const totalOrc = (orc??[]).reduce((a,r)=>a+Number(r.quantidade||0)*Number(r.valor_unit||0),0)
+      const aprovadas = (meds??[]).filter(m=>m.status==='aprovada')
+      let medTotal = 0
+      if (aprovadas.length) {
+        const { data: mitens } = await supabase.from('medicao_itens').select('qtd_medida,valor_unit').in('medicao_id', aprovadas.map(m=>m.id))
+        medTotal = (mitens??[]).reduce((a,it)=>a+Number(it.qtd_medida||0)*Number(it.valor_unit||0),0)
+      }
+      const today_s = today()
+      const boletosVenc = (boletos??[]).filter(b=>b.status!=='pago' && b.vencimento<=today_s).length
+      const boletosPago = (boletos??[]).filter(b=>b.status==='pago').reduce((a,b)=>a+Number(b.valor||0),0)
+      const boletosPend = (boletos??[]).filter(b=>b.status!=='pago').reduce((a,b)=>a+Number(b.valor||0),0)
+      const pctAvanco = totalOrc > 0 ? Math.min(100,(medTotal/totalOrc)*100) : 0
+
+      return { obra, totalOrc, medTotal, boletosVenc, boletosPago, boletosPend, pctAvanco }
+    }))
+    setDados(resultados)
+    setLoading(false)
+  }
+
+  if (loading) return <div style={{color:'#334155',fontSize:13}}>Carregando relatório...</div>
+  if (!obras.length) return (
+    <div style={{textAlign:'center',padding:'60px 0'}}>
+      <div style={{fontSize:40,marginBottom:12}}>📊</div>
+      <p style={{fontSize:15,fontWeight:600,color:'#475569'}}>Nenhuma obra cadastrada</p>
+    </div>
+  )
+
+  const totalGeralOrc   = dados.reduce((a,d)=>a+d.totalOrc,0)
+  const totalGeralMedido = dados.reduce((a,d)=>a+d.medTotal,0)
+  const totalGeralPago   = dados.reduce((a,d)=>a+d.boletosPago,0)
+  const totalGeralPend   = dados.reduce((a,d)=>a+d.boletosPend,0)
+  const totalBoletosVenc = dados.reduce((a,d)=>a+d.boletosVenc,0)
+
+  const dadosOrdenados = [...dados].sort((a,b) => {
+    if (ordenacao==='gasto')  return b.boletosPago - a.boletosPago
+    if (ordenacao==='avanco') return b.pctAvanco - a.pctAvanco
+    if (ordenacao==='boletos') return b.boletosVenc - a.boletosVenc
+    return a.obra.nome.localeCompare(b.obra.nome)
+  })
+
+  const selStyle = {
+    padding:'7px 14px',borderRadius:7,border:'1px solid #1E2235',
+    background:'#0F1117',color:'#94A3B8',fontSize:12,outline:'none',cursor:'pointer',
+  }
+
+  return (
+    <div>
+      <div style={{marginBottom:20}}>
+        <h2 style={{fontSize:18,fontWeight:700,color:'#F1F5F9',marginBottom:4}}>📊 Relatório Comparativo</h2>
+        <p style={{fontSize:13,color:'#475569'}}>Visão consolidada de todas as obras.</p>
+      </div>
+
+      {/* Cards gerais */}
+      <div style={{display:'flex',gap:12,marginBottom:24,flexWrap:'wrap'}}>
+        {[
+          {label:'Orçamento total (todas as obras)', value:fmtBRL(totalGeralOrc),    color:'#3B82F6', icon:'📋'},
+          {label:'Total medido (aprovado)',           value:fmtBRL(totalGeralMedido), color:'#10B981', icon:'✅'},
+          {label:'Total pago em boletos',             value:fmtBRL(totalGeralPago),   color:'#60A5FA', icon:'💸'},
+          {label:'Total pendente em boletos',         value:fmtBRL(totalGeralPend),   color:'#F59E0B', icon:'📄'},
+          {label:'Boletos vencidos (todas as obras)', value:totalBoletosVenc,         color: totalBoletosVenc>0 ? '#EF4444' : '#10B981', icon:'⚠️'},
+        ].map(s=>(
+          <div key={s.label} style={{flex:1,minWidth:160,...card}}>
+            <div style={{fontSize:20,marginBottom:8}}>{s.icon}</div>
+            <div style={{fontSize:11,color:'#475569',marginBottom:4}}>{s.label}</div>
+            <div style={{fontSize:16,fontWeight:700,color:s.color}}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Ordenação */}
+      <div style={{display:'flex',gap:10,marginBottom:16,alignItems:'center'}}>
+        <span style={{fontSize:12,color:'#475569'}}>Ordenar por:</span>
+        <select style={selStyle} value={ordenacao} onChange={e=>setOrdenacao(e.target.value)}>
+          <option value="nome">Nome da obra</option>
+          <option value="gasto">Maior gasto pago</option>
+          <option value="avanco">Maior avanço físico-financeiro</option>
+          <option value="boletos">Mais boletos vencidos</option>
+        </select>
+      </div>
+
+      {/* Tabela comparativa */}
+      <div style={{overflowX:'auto'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+          <thead>
+            <tr style={{background:'#1A1D2E'}}>
+              {['Obra','Orçamento','Medido','% Avanço','Pago','Pendente','Vencidos'].map(h=>(
+                <th key={h} style={{padding:'10px 14px',textAlign:'left',color:'#475569',fontWeight:700,fontSize:10,textTransform:'uppercase',borderBottom:'1px solid #1E2235'}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {dadosOrdenados.map((d,i)=>(
+              <tr key={d.obra.id} style={{background:i%2===0?'#0F1117':'#0D1020'}}>
+                <td style={{padding:'10px 14px',color:'#F1F5F9',fontWeight:600}}>{d.obra.nome}</td>
+                <td style={{padding:'10px 14px',color:'#94A3B8'}}>{fmtBRL(d.totalOrc)}</td>
+                <td style={{padding:'10px 14px',color:'#10B981'}}>{fmtBRL(d.medTotal)}</td>
+                <td style={{padding:'10px 14px'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{width:60,height:6,background:'#1E2235',borderRadius:3,overflow:'hidden'}}>
+                      <div style={{height:'100%',width:`${d.pctAvanco}%`,background:'linear-gradient(90deg,#3B82F6,#10B981)'}} />
+                    </div>
+                    <span style={{fontSize:11,color:'#64748B'}}>{d.pctAvanco.toFixed(1)}%</span>
+                  </div>
+                </td>
+                <td style={{padding:'10px 14px',color:'#60A5FA'}}>{fmtBRL(d.boletosPago)}</td>
+                <td style={{padding:'10px 14px',color:'#F59E0B'}}>{fmtBRL(d.boletosPend)}</td>
+                <td style={{padding:'10px 14px',color: d.boletosVenc>0 ? '#EF4444' : '#334155',fontWeight: d.boletosVenc>0?700:400}}>
+                  {d.boletosVenc > 0 ? d.boletosVenc : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{borderTop:'2px solid #1E2235'}}>
+              <td style={{padding:'10px 14px',color:'#F1F5F9',fontWeight:700}}>TOTAL GERAL</td>
+              <td style={{padding:'10px 14px',color:'#F1F5F9',fontWeight:700}}>{fmtBRL(totalGeralOrc)}</td>
+              <td style={{padding:'10px 14px',color:'#10B981',fontWeight:700}}>{fmtBRL(totalGeralMedido)}</td>
+              <td style={{padding:'10px 14px'}}></td>
+              <td style={{padding:'10px 14px',color:'#60A5FA',fontWeight:700}}>{fmtBRL(totalGeralPago)}</td>
+              <td style={{padding:'10px 14px',color:'#F59E0B',fontWeight:700}}>{fmtBRL(totalGeralPend)}</td>
+              <td style={{padding:'10px 14px',color: totalBoletosVenc>0 ? '#EF4444' : '#334155',fontWeight:700}}>{totalBoletosVenc > 0 ? totalBoletosVenc : '—'}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export default function Financeiro({ session, permissoes, abaInicial = 'painel' }) {
   const [obras,   setObras]   = useState([])
   const [obra,    setObra]    = useState(null)
   const [aba,     setAba]     = useState(abaInicial)
   const [loading, setLoading] = useState(true)
+  const [verRelatorios, setVerRelatorios] = useState(abaInicial === 'relatorios')
 
   useEffect(() => {
     async function fetchObras() {
@@ -1983,11 +2129,25 @@ export default function Financeiro({ session, permissoes, abaInicial = 'painel' 
 
   if (!obra) return (
     <div style={{flex:1,padding:'28px',overflowY:'auto',color:'#E2E8F0',fontFamily:"'DM Sans', sans-serif"}}>
-      <div style={{marginBottom:24}}>
-        <h1 style={{fontSize:22,fontWeight:700,color:'#F1F5F9',marginBottom:4}}>Financeiro</h1>
-        <p style={{fontSize:13,color:'#475569'}}>Selecione uma obra para gerenciar o financeiro.</p>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:24,flexWrap:'wrap',gap:12}}>
+        <div>
+          <h1 style={{fontSize:22,fontWeight:700,color:'#F1F5F9',marginBottom:4}}>Financeiro</h1>
+          <p style={{fontSize:13,color:'#475569'}}>Selecione uma obra para gerenciar o financeiro.</p>
+        </div>
+        {obras.length > 0 && (
+          <button onClick={()=>setVerRelatorios(v=>!v)} style={{
+            padding:'8px 16px',borderRadius:8,border:'none',cursor:'pointer',fontSize:13,fontWeight:700,
+            background: verRelatorios ? '#1E3A5F' : 'linear-gradient(135deg,#3B82F6,#6366F1)',
+            color: verRelatorios ? '#93C5FD' : '#fff',
+          }}>
+            {verRelatorios ? '← Voltar para lista de obras' : '📊 Relatório Comparativo'}
+          </button>
+        )}
       </div>
-      {loading ? <div style={{color:'#334155'}}>Carregando...</div>
+
+      {verRelatorios ? (
+        <Relatorios obras={obras} session={session} permissoes={permissoes} />
+      ) : loading ? <div style={{color:'#334155'}}>Carregando...</div>
       : obras.length===0 ? (
         <div style={{textAlign:'center',padding:'60px 0'}}>
           <div style={{fontSize:40,marginBottom:12}}>💰</div>
