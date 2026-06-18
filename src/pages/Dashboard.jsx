@@ -129,7 +129,7 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
 
     const alertas = []
     if (scsCriticas.length) {
-      alertas.push({ tipo: 'critico', icon: 'SC', msg: scsCriticas.length + ' SC(s) com urgencia critica aguardando aprovacao', acao: 'compras' })
+      alertas.push({ tipo: 'critico', icon: 'SC', msg: scsCriticas.length + ' SC(s) com urgência crítica aguardando aprovação', acao: 'compras' })
     }
     if (scsVencidas.length) {
       alertas.push({ tipo: 'aviso', icon: 'SC', msg: scsVencidas.length + ' SC(s) com prazo de entrega vencido', acao: 'compras' })
@@ -138,7 +138,7 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
       alertas.push({ tipo: 'aviso', icon: 'CR', msg: tasksAtrasadas.length + ' tarefa(s) atrasada(s) no cronograma', acao: 'cronograma' })
     }
     if (cotVencidas.length) {
-      alertas.push({ tipo: 'info', icon: 'COT', msg: cotVencidas.length + ' cotacao(oes) aberta(s) ha mais de 7 dias', acao: 'cotacoes' })
+      alertas.push({ tipo: 'info', icon: 'COT', msg: cotVencidas.length + ' cotação(ões) aberta(s) há mais de 7 dias', acao: 'cotacoes' })
     }
 
     setDados({ obras, obrasMap, scs, scsPendentes, scsCriticas, scsVencidas, tasksAtrasadas, tasksAtivas, tasksHoje, cotacoes: cots, cotVencidas, alertas })
@@ -202,14 +202,14 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
           <StatCard icon="🏗️" label="Obras em andamento" value={obrasEmAndamento} color="#3B82F6" onClick={() => onNavigate && onNavigate('obras')} />
           <StatCard icon="🛒" label="SCs pendentes" value={scsPendentes.length} color={scsCriticas.length ? '#EF4444' : '#F59E0B'} alert={scsCriticas.length > 0} sub={scsCriticas.length ? scsCriticas.length + ' critica(s)' : undefined} onClick={() => onNavigate && onNavigate('compras')} />
           <StatCard icon="📅" label="Tarefas atrasadas" value={tasksAtrasadas.length} color={tasksAtrasadas.length > 0 ? '#EF4444' : '#10B981'} alert={tasksAtrasadas.length > 0} sub={tasksHoje.length ? tasksHoje.length + ' em andamento hoje' : 'Sem atrasos'} onClick={() => onNavigate && onNavigate('cronograma')} />
-          <StatCard icon="📊" label="Cotacoes abertas" value={cotacoes.length} color="#8B5CF6" onClick={() => onNavigate && onNavigate('cotacoes')} />
+          <StatCard icon="📊" label="Cotações abertas" value={cotacoes.length} color="#8B5CF6" onClick={() => onNavigate && onNavigate('cotacoes')} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
 
           <Card>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>SCs aguardando aprovacao</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>SCs aguardando aprovação</div>
               <button onClick={() => onNavigate && onNavigate('compras')} style={{ background: 'none', border: 'none', color: '#3B82F6', fontSize: 12, cursor: 'pointer' }}>Ver todas</button>
             </div>
             {scsPendentes.length === 0 ? (
@@ -291,11 +291,11 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
 
           <Card>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>Cotacoes abertas</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>Cotações abertas</div>
               <button onClick={() => onNavigate && onNavigate('cotacoes')} style={{ background: 'none', border: 'none', color: '#3B82F6', fontSize: 12, cursor: 'pointer' }}>Ver todas</button>
             </div>
             {cotacoes.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: '#334155', fontSize: 13 }}>Nenhuma cotacao aberta</div>
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#334155', fontSize: 13 }}>Nenhuma cotação aberta</div>
             ) : cotacoes.map(c => {
               const obra = obrasMap[c.obra_id]
               const dias = Math.round((hoje - new Date(c.created_at)) / 86400000)
@@ -327,7 +327,7 @@ export default function Dashboard({ session, permissoes, onNavigate }) {
                   <span style={{ fontSize: 13, padding: '2px 8px', borderRadius: 6, background: '#1E3A5F', color: '#93C5FD', fontWeight: 700, flexShrink: 0 }}>SC</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#F1F5F9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      SC aguardando aprovacao - {sc.titulo}
+                      SC aguardando aprovação - {sc.titulo}
                     </div>
                     <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
                       {obra ? obra.nome : '-'} &bull; {sc.solicitante_nome}
