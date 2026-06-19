@@ -809,7 +809,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
       {recebimentoOpen && (
         <RecebimentoModal
           sc={solicitacao}
-          itens={form.itens.filter(it => it.descricao?.trim())}
+          itens={items.filter(it => it.descricao?.trim())}
           session={session}
           onClose={() => setRecebimentoOpen(false)}
           onConfirmado={() => { setRecebimentoOpen(false); onRefresh?.(); onClose() }}
