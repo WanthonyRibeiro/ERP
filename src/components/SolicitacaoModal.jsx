@@ -194,7 +194,7 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               model: 'claude-sonnet-4-6',
-              max_tokens: 1000,
+              max_tokens: 8000,
               messages: [{
                 role: 'user',
                 content: [
@@ -206,15 +206,20 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
           })
           const data = await res.json()
           if (data.error) throw new Error(data.error.message ?? JSON.stringify(data.error))
+          if (data.stop_reason === 'max_tokens') {
+            showImportToast('Lista muito grande, alguns itens podem ter ficado de fora. Confira antes de enviar.')
+          }
           const text = data.content?.[0]?.text ?? ''
           const clean = text.replace(/```json|```/g,'').trim()
           const parsed = JSON.parse(clean)
           if (parsed.itens?.length) {
             setItems(its => [...its.filter(i=>i.descricao?.trim()), ...parsed.itens.map(it=>({...it,id:Date.now()+Math.random()}))])
-            showImportToast(`${parsed.itens.length} itens extraídos da imagem!`)
+            if (data.stop_reason !== 'max_tokens') {
+              showImportToast(`${parsed.itens.length} itens extraídos da imagem!`)
+            }
           }
         } catch(err) {
-          showImportToast('Erro ao analisar imagem.')
+          showImportToast('Erro ao analisar imagem. Tente uma foto mais nítida ou com menos itens.')
         } finally {
           setImportando(false)
         }
