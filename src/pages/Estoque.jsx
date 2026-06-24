@@ -35,8 +35,7 @@ export default function Estoque({ session, permissoes }) {
   async function loadObras() {
     const { data } = await supabase.from('obras').select('id, nome').order('nome')
     setObras(data ?? [])
-    if (data?.length) setObraId(data[0].id)
-    else setLoading(false)
+    setLoading(false)
   }
 
   async function loadDados() {
@@ -215,13 +214,45 @@ export default function Estoque({ session, permissoes }) {
     color: '#F1F5F9', fontSize: 13, outline: 'none', fontFamily: 'inherit',
   }
 
+  // Tela de seleção de obra (antes de mostrar qualquer dado)
+  if (!obraId) return (
+    <div style={{ flex: 1, padding: '28px', overflowY: 'auto', color: '#E2E8F0', fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>🗃️ Estoque</h1>
+        <p style={{ fontSize: 13, color: '#475569' }}>Selecione a obra para visualizar o estoque.</p>
+      </div>
+      {loading ? <div style={{ color: '#334155' }}>Carregando...</div>
+      : obras.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 0' }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>📦</div>
+          <p style={{ fontSize: 14, color: '#475569', fontWeight: 600 }}>Nenhuma obra cadastrada</p>
+        </div>
+      ) : obras.map(o => (
+        <div key={o.id} onClick={() => setObraId(o.id)} style={{
+          background: '#1A1D2E', border: '1px solid #1E2235', borderRadius: 12,
+          padding: '18px 22px', cursor: 'pointer', marginBottom: 10,
+          display: 'flex', alignItems: 'center', gap: 16,
+        }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#3B82F640'; e.currentTarget.style.background = '#1E2235' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#1E2235'; e.currentTarget.style.background = '#1A1D2E' }}
+        >
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg, #064E3B, #1E3A5F)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📦</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#F1F5F9' }}>{o.nome}</div>
+          </div>
+          <div style={{ fontSize: 20, color: '#334155' }}>›</div>
+        </div>
+      ))}
+    </div>
+  )
+
   return (
     <div style={{ flex: 1, padding: '28px', overflowY: 'auto', color: '#E2E8F0', fontFamily: "'DM Sans', sans-serif" }}>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#F1F5F9', marginBottom: 4 }}>🗃️ Estoque</h1>
-          <p style={{ fontSize: 13, color: '#475569' }}>Saldo de insumos por obra e histórico de movimentações.</p>
+          <p style={{ fontSize: 13, color: '#475569' }}>{obras.find(o => o.id === obraId)?.nome ?? ''} — Saldo de insumos e histórico de movimentações.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button onClick={exportarExcel} disabled={exportando || !saldo.length} style={{
@@ -231,9 +262,12 @@ export default function Estoque({ session, permissoes }) {
           }}>
             {exportando ? '⏳ Exportando...' : '📊 Exportar Excel'}
           </button>
-          <select style={selStyle} value={obraId} onChange={e => setObraId(e.target.value)}>
-            {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
-          </select>
+          <button onClick={() => setObraId('')} style={{
+            padding: '7px 14px', borderRadius: 7, border: '1px solid #1E2235',
+            background: 'transparent', color: '#64748B', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+          }}>
+            ← Trocar obra
+          </button>
         </div>
       </div>
 
