@@ -58,13 +58,6 @@ const MENU = [
     adminOnly: true,
   },
   {
-    id: 'dados_empresa',
-    icon: '🏢',
-    label: 'Dados da Empresa',
-    modulo: 'dados_empresa',
-    adminOnly: true,
-  },
-  {
     id: 'configuracoes',
     icon: '⚙️',
     label: 'Configurações',

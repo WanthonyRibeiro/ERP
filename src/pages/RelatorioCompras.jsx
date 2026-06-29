@@ -272,29 +272,59 @@ export default function RelatorioCompras({ session }) {
                     const smeta = STATUS_META[sc.status] ?? STATUS_META.pendente
                     const umeta = URGENCIA_META[sc.urgencia] ?? URGENCIA_META.normal
                     const total = totalSC(sc)
+                    const itensFilt = (sc.itens ?? []).filter(it => it.descricao?.trim())
                     return (
-                      <tr key={sc.id} style={{ background: i % 2 === 0 ? '#0F1117' : '#0D1020' }}>
-                        <td style={{ padding: '10px 12px', color: '#F1F5F9', fontWeight: 600 }}>{sc.titulo}</td>
-                        <td style={{ padding: '10px 12px', color: '#94A3B8' }}>{sc.obra?.nome ?? '—'}</td>
-                        <td style={{ padding: '10px 12px' }}>
-                          {sc.gestao && (
-                            <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, background: sc.gestao === 'GA' ? '#1E3A5F' : '#064E3B', color: sc.gestao === 'GA' ? '#93C5FD' : '#6EE7B7', whiteSpace: 'nowrap' }}>
-                              {sc.gestao === 'GA' ? 'Gestão Administrativa' : 'Gestão Executiva'}
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ padding: '10px 12px', color: '#64748B' }}>{sc.solicitante_nome}</td>
-                        <td style={{ padding: '10px 12px', color: '#64748B', whiteSpace: 'nowrap' }}>{fmtDate(sc.created_at)}</td>
-                        <td style={{ padding: '10px 12px', color: '#64748B', whiteSpace: 'nowrap' }}>{fmtDate(sc.prazo_entrega)}</td>
-                        <td style={{ padding: '10px 12px', color: '#94A3B8', textAlign: 'center' }}>{sc.itens?.length ?? 0}</td>
-                        <td style={{ padding: '10px 12px', color: total > 0 ? '#F1F5F9' : '#334155', textAlign: 'right', whiteSpace: 'nowrap' }}>{total > 0 ? fmtBRL(total) : '—'}</td>
-                        <td style={{ padding: '10px 12px' }}>
-                          <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 10, fontWeight: 600, background: smeta.bg, color: smeta.color }}>{smeta.label}</span>
-                        </td>
-                        <td style={{ padding: '10px 12px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: umeta.color }}>{umeta.label}</span>
-                        </td>
-                      </tr>
+                      <>
+                        <tr key={sc.id} style={{ background: i % 2 === 0 ? '#0F1117' : '#0D1020' }}>
+                          <td style={{ padding: '10px 12px', color: '#F1F5F9', fontWeight: 600 }}>{sc.titulo}</td>
+                          <td style={{ padding: '10px 12px', color: '#94A3B8' }}>{sc.obra?.nome ?? '—'}</td>
+                          <td style={{ padding: '10px 12px' }}>
+                            {sc.gestao && (
+                              <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, background: sc.gestao === 'GA' ? '#1E3A5F' : '#064E3B', color: sc.gestao === 'GA' ? '#93C5FD' : '#6EE7B7', whiteSpace: 'nowrap' }}>
+                                {sc.gestao === 'GA' ? 'Gestão Administrativa' : 'Gestão Executiva'}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '10px 12px', color: '#64748B' }}>{sc.solicitante_nome}</td>
+                          <td style={{ padding: '10px 12px', color: '#64748B', whiteSpace: 'nowrap' }}>{fmtDate(sc.created_at)}</td>
+                          <td style={{ padding: '10px 12px', color: '#64748B', whiteSpace: 'nowrap' }}>{fmtDate(sc.prazo_entrega)}</td>
+                          <td style={{ padding: '10px 12px', color: '#94A3B8', textAlign: 'center' }}>{sc.itens?.length ?? 0}</td>
+                          <td style={{ padding: '10px 12px', color: total > 0 ? '#F1F5F9' : '#334155', textAlign: 'right', whiteSpace: 'nowrap' }}>{total > 0 ? fmtBRL(total) : '—'}</td>
+                          <td style={{ padding: '10px 12px' }}>
+                            <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 10, fontWeight: 600, background: smeta.bg, color: smeta.color }}>{smeta.label}</span>
+                          </td>
+                          <td style={{ padding: '10px 12px' }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: umeta.color }}>{umeta.label}</span>
+                          </td>
+                        </tr>
+                        {itensFilt.length > 0 && (
+                          <tr key={sc.id + '_itens'} style={{ background: i % 2 === 0 ? '#080A10' : '#0A0C14' }}>
+                            <td colSpan={10} style={{ padding: '0 12px 10px 28px' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                                <thead>
+                                  <tr>
+                                    {['#', 'Descrição', 'Un.', 'Qtde', 'Valor Unit.', 'Fornecedor sugerido'].map(h => (
+                                      <th key={h} style={{ padding: '4px 8px', textAlign: 'left', color: '#334155', fontWeight: 700, fontSize: 9, textTransform: 'uppercase', borderBottom: '1px solid #1E2235' }}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {itensFilt.map((it, idx) => (
+                                    <tr key={it.id}>
+                                      <td style={{ padding: '4px 8px', color: '#334155' }}>{idx + 1}</td>
+                                      <td style={{ padding: '4px 8px', color: '#94A3B8' }}>{it.descricao}</td>
+                                      <td style={{ padding: '4px 8px', color: '#475569' }}>{it.unidade ?? 'un'}</td>
+                                      <td style={{ padding: '4px 8px', color: '#64748B', fontWeight: 600 }}>{it.quantidade}</td>
+                                      <td style={{ padding: '4px 8px', color: '#475569' }}>{it.valor_unitario ? fmtBRL(it.valor_unitario) : '—'}</td>
+                                      <td style={{ padding: '4px 8px', color: '#334155' }}>{it.fornecedor_sugerido || '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     )
                   })}
                 </tbody>

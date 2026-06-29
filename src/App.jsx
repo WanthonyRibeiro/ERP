@@ -15,7 +15,6 @@ import Feedbacks from './pages/Feedbacks'
 import Estoque from './pages/Estoque'
 import PedidosCompra from './pages/PedidosCompra'
 import MapaControle from './pages/MapaControle'
-import DadosEmpresa from './pages/DadosEmpresa'
 import { usePermissoes } from './lib/usePermissoes'
 import FeedbackButton from './components/FeedbackButton'
 import Sidebar from './components/Sidebar'
@@ -62,7 +61,6 @@ export default function App() {
         {module === 'feedbacks'          && <Feedbacks         session={session} />}
         {module === 'estoque'            && <Estoque           session={session} permissoes={permissoes} />}
         {module === 'pedidos_compra'      && <PedidosCompra      session={session} />}
-        {module === 'dados_empresa'       && <DadosEmpresa       session={session} />}
         {module === 'cotacoes'      && <Cotacoes      session={session} permissoes={permissoes} />}
         {module === 'insumos'       && <Insumos       session={session} />}
         {module === 'fornecedores'  && <Fornecedores  session={session} />}
