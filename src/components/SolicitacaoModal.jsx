@@ -264,6 +264,102 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
   const smeta = STATUS_META[form.status]  ?? STATUS_META.pendente
   const umeta = URGENCIA_META[form.urgencia] ?? URGENCIA_META.normal
 
+  function imprimirSC() {
+    const obraNome = obras.find(o => o.id === form.obra_id)?.nome ?? '—'
+    const dataAbertura = solicitacao?.created_at
+      ? new Date(solicitacao.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      : new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const prazo = form.prazo_entrega
+      ? new Date(form.prazo_entrega + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      : '—'
+
+    const itensFiltrados = items.filter(i => i.descricao?.trim())
+    const itensRows = itensFiltrados.map((it, idx) => `
+      <tr style="background:${idx % 2 === 0 ? '#f9fafb' : '#fff'}">
+        <td>${idx + 1}</td>
+        <td>${it.descricao}</td>
+        <td style="text-align:center">${it.unidade ?? 'un'}</td>
+        <td style="text-align:center">${it.quantidade}</td>
+        ${it.fornecedor_sugerido ? `<td>${it.fornecedor_sugerido}</td>` : '<td style="color:#aaa">—</td>'}
+      </tr>
+    `).join('')
+
+    const win = window.open('', '_blank')
+    win.document.write(`
+      <html><head><title>SC — ${form.titulo}</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 30px; }
+        .header { border-bottom: 3px solid #1a1d2e; padding-bottom: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
+        .empresa { font-size: 15px; font-weight: 700; }
+        .empresa-info { font-size: 11px; color: #555; margin-top: 4px; }
+        .sc-titulo { font-size: 18px; font-weight: 700; text-align: right; }
+        .sc-numero { font-size: 11px; color: #555; text-align: right; margin-top: 4px; }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; margin-left: 8px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; font-size: 12px; }
+        .info-item label { display: block; font-size: 10px; font-weight: 700; color: #888; text-transform: uppercase; margin-bottom: 3px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #1a1d2e; color: #fff; padding: 8px 10px; text-align: left; font-size: 10px; text-transform: uppercase; }
+        td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; }
+        .rodape { margin-top: 40px; font-size: 10px; color: #888; border-top: 1px solid #e2e8f0; padding-top: 12px; display: flex; justify-content: space-between; }
+        .assinatura { margin-top: 50px; display: flex; gap: 60px; }
+        .assinatura-linha { border-top: 1px solid #333; padding-top: 6px; font-size: 11px; min-width: 200px; text-align: center; }
+        @media print { body { padding: 10px } }
+      </style></head><body>
+
+      <div class="header">
+        <div>
+          <div class="empresa">S.A Pride Construtora e Incorporadora Ltda</div>
+          <div class="empresa-info">CNPJ: 46.787.316/0001-76 &nbsp;|&nbsp; Av. Nereu Ramos, 5292 – Balneário Piçarras – SC</div>
+        </div>
+        <div>
+          <div class="sc-titulo">SOLICITAÇÃO DE COMPRAS</div>
+          <div class="sc-numero">${form.titulo}</div>
+          <div class="sc-numero">Emitido em ${dataAbertura}</div>
+        </div>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-item"><label>Obra</label>${obraNome}</div>
+        <div class="info-item"><label>Gestão</label>${form.gestao === 'GA' ? 'Gestão Administrativa' : 'Gestão Executiva'}</div>
+        <div class="info-item"><label>Solicitante</label>${form.solicitante_nome ?? userName}</div>
+        <div class="info-item"><label>Urgência</label>${form.urgencia?.charAt(0).toUpperCase() + form.urgencia?.slice(1)}</div>
+        <div class="info-item"><label>Prazo de entrega</label>${prazo}</div>
+        <div class="info-item"><label>Status</label>${smeta.label}</div>
+      </div>
+
+      ${form.observacoes ? `<div style="margin-bottom:20px;padding:10px 14px;background:#f1f5f9;border-radius:6px;font-size:11px"><strong>Observações:</strong> ${form.observacoes}</div>` : ''}
+
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Descrição</th>
+            <th style="text-align:center">Un.</th>
+            <th style="text-align:center">Qtde</th>
+            <th>Fornecedor sugerido</th>
+          </tr>
+        </thead>
+        <tbody>${itensRows}</tbody>
+      </table>
+
+      <div class="assinatura">
+        <div class="assinatura-linha">Solicitante</div>
+        <div class="assinatura-linha">Comprador / Responsável</div>
+        <div class="assinatura-linha">Aprovação</div>
+      </div>
+
+      <div class="rodape">
+        <span>S.A Pride ERP — Documento gerado automaticamente</span>
+        <span>${new Date().toLocaleString('pt-BR')}</span>
+      </div>
+
+      </body></html>
+    `)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
   const ABAS = [
     { id: 'dados',     label: 'Dados' },
     ...(!isNew ? [{ id: 'historico', label: 'Histórico' }] : []),
@@ -782,6 +878,9 @@ export default function SolicitacaoModal({ solicitacao, obras, onSave, onDelete,
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {!isNew && (
+              <button onClick={imprimirSC} style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #1E2235', background: 'transparent', color: '#64748B', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>🖨️ Imprimir</button>
+            )}
             {form.status === 'pendente' && !isNew && (
               <>
                 <button disabled={salvando} onClick={() => handleSave('aprovada')} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#1E3A5F', color: '#93C5FD', fontWeight: 600, fontSize: 12, cursor: salvando ? 'default' : 'pointer', opacity: salvando ? 0.6 : 1 }}>✓ Aprovar</button>
