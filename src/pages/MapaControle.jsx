@@ -22,7 +22,6 @@ function fmtData(d) {
 export default function MapaControle({ session }) {
   const [obras,    setObras]    = useState([])
   const [scs,      setScs]      = useState([])
-  const [insumos,  setInsumos]  = useState([])
   const [loading,  setLoading]  = useState(true)
   const [exportando, setExportando] = useState(false)
 
@@ -38,16 +37,14 @@ export default function MapaControle({ session }) {
 
   async function init() {
     setLoading(true)
-    const [{ data: obrasData }, { data: scsData }, { data: insumosData }] = await Promise.all([
+    const [{ data: obrasData }, { data: scsData }] = await Promise.all([
       supabase.from('obras').select('id, nome').order('nome'),
       supabase.from('solicitacoes_compra')
-        .select('*, obra:obras(nome), itens:itens_solicitacao(id, descricao, unidade, quantidade)')
+        .select('*, obra:obras(nome), itens:itens_solicitacao(id, descricao, unidade, quantidade, valor_unitario, fornecedor_sugerido)')
         .order('created_at', { ascending: false }),
-      supabase.from('insumos').select('id, nome'),
     ])
     setObras(obrasData ?? [])
     setScs(scsData ?? [])
-    setInsumos(insumosData ?? [])
     setLoading(false)
   }
 
@@ -68,11 +65,6 @@ export default function MapaControle({ session }) {
     return acc
   }, [])
 
-  function nomeInsumo(insumo_id) {
-    if (!insumo_id) return null
-    return insumos.find(i => i.id === insumo_id)?.nome ?? null
-  }
-
   // ── Impressão ──────────────────────────────────────────────────────────
   function imprimir() {
     const blocos = porObra.map(({ obra, scs: lista }) => {
@@ -82,10 +74,10 @@ export default function MapaControle({ session }) {
         const itensRows = (sc.itens ?? []).filter(i => i.descricao?.trim()).map((it, idx) => `
           <tr style="background:${idx%2===0?'#f9fafb':'#fff'}">
             <td style="padding:4px 8px;color:#888;font-size:10px">${idx+1}</td>
-            <td style="padding:4px 8px">${it.descricao}${nomeInsumo(undefined) ? `<br><span style="font-size:9px;color:#3B82F6">📦 ${nomeInsumo(undefined)}</span>` : ''}</td>
+            <td style="padding:4px 8px">${it.descricao}${it.descricao}</td>
             <td style="padding:4px 8px;text-align:center">${it.unidade ?? 'un'}</td>
             <td style="padding:4px 8px;text-align:center">${it.quantidade}</td>
-            <td style="padding:4px 8px;color:#888">${undefined || '—'}</td>
+            <td style="padding:4px 8px;color:#888">${it.fornecedor_sugerido || '—'}</td>
           </tr>`).join('')
 
         return `
@@ -200,11 +192,11 @@ export default function MapaControle({ session }) {
           'SC': sc.titulo,
           'Status SC': STATUS_META[sc.status]?.label ?? sc.status,
           'Descrição': it.descricao,
-          'Insumo Vinculado': nomeInsumo(undefined) ?? '—',
+          
           'Unidade': it.unidade ?? 'un',
           'Quantidade': it.quantidade,
-          'Valor Unit.': undefined ?? '',
-          'Fornecedor Sugerido': undefined ?? '',
+          'Valor Unit.': it.valor_unitario ?? '',
+          'Fornecedor Sugerido': it.fornecedor_sugerido ?? '',
         }))
       )
       const wsItens = XLSX.utils.json_to_sheet(itensRows)
@@ -346,13 +338,11 @@ export default function MapaControle({ session }) {
                             <td style={{ padding: '6px 12px', color: '#475569', fontSize: 11 }}>{idx + 1}</td>
                             <td style={{ padding: '6px 12px', color: '#E2E8F0' }}>
                               {it.descricao}
-                              {nomeInsumo(undefined) && (
-                                <div style={{ fontSize: 10, color: '#3B82F6', marginTop: 2 }}>📦 {nomeInsumo(undefined)}</div>
-                              )}
+                              
                             </td>
                             <td style={{ padding: '6px 12px', color: '#64748B' }}>{it.unidade ?? 'un'}</td>
                             <td style={{ padding: '6px 12px', color: '#94A3B8', fontWeight: 600 }}>{it.quantidade}</td>
-                            <td style={{ padding: '6px 12px', color: '#475569' }}>{undefined || '—'}</td>
+                            <td style={{ padding: '6px 12px', color: '#475569' }}>{it.fornecedor_sugerido || '—'}</td>
                           </tr>
                         ))}
                       </tbody>
